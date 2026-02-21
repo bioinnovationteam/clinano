@@ -59,8 +59,6 @@ if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 if 'image_captured' not in st.session_state:
     st.session_state.image_captured = None
-if 'history' not in st.session_state:
-    st.session_state.history = []
 
 def rgb_to_hsv(r, g, b):
     """Convert RGB to HSV"""
@@ -246,8 +244,6 @@ def main():
         education_page()
     elif page == "Guidelines":
         guidelines_page()
-    elif page == "History":
-        history_page()
 
 def analyzer_page():
     # Create two columns for layout
@@ -639,45 +635,6 @@ def guidelines_page():
         ⚠️ This is a screening tool only. Always consult healthcare providers for medical decisions.
         </div>
         """, unsafe_allow_html=True)
-
-def history_page():
-    st.subheader("📊 History & Trends")
-    
-    if st.session_state.history:
-        # Convert history to DataFrame
-        df = pd.DataFrame(st.session_state.history)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df.sort_values('timestamp')
-        
-        # Display metrics over time
-        st.line_chart(df.set_index('timestamp')[['uacr', 'egfr']])
-        
-        # Show history table
-        st.dataframe(
-            df[['timestamp', 'uacr', 'egfr', 'category']].round(2),
-            use_container_width=True
-        )
-        
-        # Export option
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download History (CSV)",
-            data=csv,
-            file_name=f"uACR_history_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.info("No history available. Complete an analysis to see your history.")
-        
-        # Sample data for demonstration
-        st.markdown("### Sample Trend Visualization")
-        dates = pd.date_range(start='2024-01-01', periods=6, freq='W')
-        sample_data = pd.DataFrame({
-            'timestamp': dates,
-            'uacr': np.random.uniform(15, 50, 6),
-            'egfr': np.random.uniform(70, 90, 6)
-        })
-        st.line_chart(sample_data.set_index('timestamp'))
 
 if __name__ == "__main__":
     main()
