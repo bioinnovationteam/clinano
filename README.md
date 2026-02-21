@@ -1,6 +1,6 @@
-# 🎈 Blank app template
+# Clinano Diagnostic Technologies - Pisanmi uACR Test
 
-A simple Streamlit app template for you to modify!
+This is meant to be a browser-based app that allows users to image, process, and recieve results for a Clinano-branded uACR dipstick!
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
 
