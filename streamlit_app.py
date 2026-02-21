@@ -22,30 +22,30 @@ st.markdown("""
     <style>
     .main-header {
         font-size: 3rem;
-        color: #2E86C1;
+        color: #013220;
         text-align: center;
         margin-bottom: 2rem;
     }
     .info-box {
-        background-color: #f0f2f6;
+        background-color: #013220;
         padding: 2rem;
         border-radius: 1rem;
         margin: 1rem 0;
     }
     .warning-box {
-        background-color: #ffecb3;
+        background-color: #013220;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
     }
     .success-box {
-        background-color: #d4edda;
+        background-color: #013220;
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 1rem 0;
     }
     .fact-card {
-        background-color: white;
+        background-color: black;
         padding: 1.5rem;
         border-radius: 1rem;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
