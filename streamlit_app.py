@@ -7,7 +7,7 @@ import colorsys
 # Page configuration
 st.set_page_config(
     page_title="uACR Dipstick Analyzer",
-    page_icon="🧪",
+    page_icon="",
     layout="centered"
 )
 
@@ -153,11 +153,11 @@ def get_uacr_category(value):
         return "Severe", "#dc3545"
 
 # Main app
-st.title("🧪 uACR Dipstick Analyzer")
+st.title(" uACR Dipstick Analyzer")
 
 # Image capture section
 st.markdown('<div class="info-box">', unsafe_allow_html=True)
-st.subheader("📸 Step 1: Capture Image")
+st.subheader("Step 1: Capture Image")
 
 input_method = st.radio("Choose method:", ["Take Photo", "Upload"], horizontal=True)
 
