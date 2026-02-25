@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"  # Collapsed sidebar on mobile
 )
 
-# Custom CSS for white/blue theme and mobile optimization
+# Custom CSS for white/blue theme and mobile optimization with improved contrast
 st.markdown("""
     <style>
     /* Main container padding for mobile */
@@ -25,21 +25,34 @@ st.markdown("""
         padding: 0 0.5rem;
     }
     
+    /* Base text styles for better contrast */
+    .stMarkdown, p, li, .stText {
+        color: #1A1A1A !important;  /* Dark gray for better contrast */
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #003366 !important;  /* Darker blue for headers */
+        font-weight: 600;
+    }
+    
     /* Header styling */
     .main-header {
         font-size: 2rem;
-        color: #0066CC;
+        color: #003366;  /* Darker blue for better contrast */
         text-align: center;
         margin: 1rem 0 1.5rem 0;
         padding: 0.5rem;
-        background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+        background: linear-gradient(135deg, #E6F0FF 0%, #FFFFFF 100%);
         border-radius: 15px;
-        box-shadow: 0 2px 4px rgba(0,102,204,0.1);
+        box-shadow: 0 2px 4px rgba(0,51,102,0.1);
+        font-weight: 700;
     }
     
-    /* Info box - white with blue border */
+    /* Info box - white with blue border and dark text */
     .info-box {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         padding: 1.2rem;
         border-radius: 12px;
         margin: 1rem 0;
@@ -47,9 +60,13 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(0,102,204,0.08);
     }
     
+    .info-box p, .info-box li, .info-box div {
+        color: #1A1A1A !important;
+    }
+    
     /* Warning box - white with yellow border */
     .warning-box {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         padding: 1rem;
         border-radius: 12px;
         margin: 1rem 0;
@@ -57,9 +74,13 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(255,193,7,0.1);
     }
     
+    .warning-box p, .warning-box li {
+        color: #1A1A1A !important;
+    }
+    
     /* Success box - white with green border */
     .success-box {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         padding: 1rem;
         border-radius: 12px;
         margin: 1rem 0;
@@ -67,38 +88,43 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(40,167,69,0.1);
     }
     
-    /* Fact cards - white with blue accents */
+    .success-box p, .success-box li {
+        color: #1A1A1A !important;
+    }
+    
+    /* Fact cards - white with blue accents and dark text */
     .fact-card {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         padding: 1.2rem;
         border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,102,204,0.1);
+        box-shadow: 0 4px 12px rgba(0,51,102,0.1);
         margin: 0.8rem 0;
-        border: 1px solid #e6f0ff;
+        border: 1px solid #CCE0FF;
         transition: transform 0.2s;
     }
     
     .fact-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0,102,204,0.15);
+        box-shadow: 0 6px 16px rgba(0,51,102,0.15);
     }
     
     .fact-card h3 {
-        color: #0066CC;
+        color: #003366 !important;
         margin-bottom: 0.8rem;
         font-size: 1.2rem;
+        font-weight: 700;
     }
     
     .fact-card p {
-        color: #4a4a4a;
+        color: #1A1A1A !important;
         font-size: 0.95rem;
         line-height: 1.5;
     }
     
     /* Button styling */
     .stButton > button {
-        background: linear-gradient(135deg, #0066CC 0%, #0052a3 100%);
-        color: white;
+        background: linear-gradient(135deg, #0066CC 0%, #004C99 100%);
+        color: white !important;
         border: none;
         padding: 0.75rem 1.5rem;
         border-radius: 25px;
@@ -110,17 +136,17 @@ st.markdown("""
     }
     
     .stButton > button:hover {
-        background: linear-gradient(135deg, #0052a3 0%, #004080 100%);
-        box-shadow: 0 6px 16px rgba(0,102,204,0.3);
+        background: linear-gradient(135deg, #004C99 0%, #003366 100%);
+        box-shadow: 0 6px 16px rgba(0,51,102,0.3);
         transform: translateY(-2px);
     }
     
     /* Radio button styling */
     .stRadio > div {
-        background-color: #f8faff;
+        background-color: #F5F9FF;
         padding: 0.8rem;
         border-radius: 25px;
-        border: 1px solid #e6f0ff;
+        border: 1px solid #CCE0FF;
     }
     
     .stRadio [role="radiogroup"] {
@@ -128,32 +154,51 @@ st.markdown("""
         justify-content: center;
     }
     
+    .stRadio label {
+        color: #1A1A1A !important;
+        font-weight: 500;
+    }
+    
     /* Expander styling */
     .streamlit-expanderHeader {
-        background-color: #f8faff;
+        background-color: #F5F9FF;
         border-radius: 10px;
-        color: #0066CC;
+        color: #003366 !important;
         font-weight: 600;
-        border: 1px solid #e6f0ff;
+        border: 1px solid #CCE0FF;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: #FFFFFF;
+        border-radius: 0 0 10px 10px;
+        border: 1px solid #CCE0FF;
+        border-top: none;
+        padding: 1rem;
     }
     
     /* Metric styling */
     .stMetric {
-        background-color: #ffffff;
+        background-color: #FFFFFF;
         padding: 1rem;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,102,204,0.05);
-        border: 1px solid #e6f0ff;
+        box-shadow: 0 2px 8px rgba(0,51,102,0.05);
+        border: 1px solid #CCE0FF;
     }
     
     .stMetric label {
-        color: #0066CC !important;
+        color: #003366 !important;
+        font-weight: 600;
+    }
+    
+    .stMetric [data-testid="stMetricValue"] {
+        color: #1A1A1A !important;
+        font-weight: 700;
     }
     
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
-        background-color: #f8faff;
+        background-color: #F5F9FF;
         padding: 0.5rem;
         border-radius: 30px;
     }
@@ -161,22 +206,49 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         border-radius: 25px;
         padding: 0.5rem 1rem;
-        color: #4a4a4a;
+        color: #1A1A1A !important;
+        font-weight: 500;
     }
     
     .stTabs [aria-selected="true"] {
         background-color: #0066CC !important;
         color: white !important;
+        font-weight: 600;
     }
     
     /* Slider styling */
     .stSlider label {
-        color: #0066CC !important;
+        color: #003366 !important;
         font-weight: 600;
     }
     
     .stSlider div[data-baseweb="slider"] {
-        background-color: #f8faff;
+        background-color: #F5F9FF;
+    }
+    
+    /* Number input styling */
+    .stNumberInput label {
+        color: #003366 !important;
+        font-weight: 600;
+    }
+    
+    .stNumberInput input {
+        background-color: #FFFFFF;
+        border: 1px solid #CCE0FF;
+        border-radius: 8px;
+        color: #1A1A1A !important;
+    }
+    
+    /* Selectbox styling */
+    .stSelectbox label {
+        color: #003366 !important;
+        font-weight: 600;
+    }
+    
+    .stSelectbox div[data-baseweb="select"] {
+        background-color: #FFFFFF;
+        border: 1px solid #CCE0FF;
+        border-radius: 8px;
     }
     
     /* Divider styling */
@@ -189,15 +261,9 @@ st.markdown("""
     
     /* Image caption */
     .stImage caption {
-        color: #0066CC;
+        color: #003366;
         font-weight: 500;
         text-align: center;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background-color: #ffffff;
-        border-right: 1px solid #e6f0ff;
     }
     
     /* Mobile-specific adjustments */
@@ -218,21 +284,29 @@ st.markdown("""
         h3 {
             font-size: 1.2rem;
         }
+        
+        p, li {
+            font-size: 0.95rem;
+        }
     }
     
     /* Custom class for blue text */
     .blue-text {
-        color: #0066CC;
+        color: #003366;
         font-weight: 600;
     }
     
     /* Card container for results */
     .result-card {
-        background: linear-gradient(135deg, #f8faff 0%, #ffffff 100%);
+        background: linear-gradient(135deg, #F8FCFF 0%, #FFFFFF 100%);
         padding: 1.5rem;
         border-radius: 20px;
-        border: 1px solid #e6f0ff;
+        border: 1px solid #CCE0FF;
         margin: 1rem 0;
+    }
+    
+    .result-card p, .result-card div {
+        color: #1A1A1A !important;
     }
     
     /* Color swatch styling */
@@ -240,9 +314,44 @@ st.markdown("""
         width: 40px;
         height: 40px;
         border-radius: 10px;
-        border: 2px solid #ffffff;
+        border: 2px solid #FFFFFF;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         margin: 0 auto;
+    }
+    
+    /* Ensure all text has good contrast */
+    .stAlert p {
+        color: #1A1A1A !important;
+    }
+    
+    .stException {
+        color: #1A1A1A !important;
+    }
+    
+    /* Dataframe styling */
+    .dataframe {
+        color: #1A1A1A !important;
+    }
+    
+    .dataframe th {
+        background-color: #E6F0FF !important;
+        color: #003366 !important;
+        font-weight: 600;
+    }
+    
+    /* Camera input styling */
+    .stCameraInput {
+        border: 2px dashed #CCE0FF;
+        border-radius: 15px;
+        background-color: #F8FCFF;
+    }
+    
+    /* File uploader styling */
+    .stFileUploader {
+        border: 2px dashed #CCE0FF;
+        border-radius: 15px;
+        padding: 1rem;
+        background-color: #F8FCFF;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -252,8 +361,8 @@ if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 if 'image_captured' not in st.session_state:
     st.session_state.image_captured = None
-if 'history' not in st.session_state:
-    st.session_state.history = []
+if 'current_view' not in st.session_state:
+    st.session_state.current_view = "analyzer"  # Default view
 
 def rgb_to_hsv(r, g, b):
     """Convert RGB to HSV"""
@@ -426,29 +535,36 @@ def main():
     # Header with blue gradient
     st.markdown('<h1 class="main-header">🧪 uACR Dipstick Analyzer</h1>', unsafe_allow_html=True)
     
-    # Mobile-friendly navigation using radio buttons
-    st.markdown("""
-    <div style="background-color: #f8faff; padding: 0.5rem; border-radius: 30px; margin-bottom: 1rem;">
-    """, unsafe_allow_html=True)
+    # Simple inline navigation with pills (without radio buttons)
+    col1, col2, col3 = st.columns(3)
     
-    page = st.radio(
-        "",
-        ["📸 Analyzer", "📚 Education", "📋 Guidelines", "📊 History"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    with col1:
+        if st.button("📸 Analyzer", use_container_width=True, 
+                    type="primary" if st.session_state.current_view == "analyzer" else "secondary"):
+            st.session_state.current_view = "analyzer"
+            st.rerun()
     
-    st.markdown("</div>", unsafe_allow_html=True)
+    with col2:
+        if st.button("📚 Education", use_container_width=True,
+                    type="primary" if st.session_state.current_view == "education" else "secondary"):
+            st.session_state.current_view = "education"
+            st.rerun()
     
-    # Clean page names
-    if page == "📸 Analyzer":
+    with col3:
+        if st.button("📋 Guidelines", use_container_width=True,
+                    type="primary" if st.session_state.current_view == "guidelines" else "secondary"):
+            st.session_state.current_view = "guidelines"
+            st.rerun()
+    
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Show the selected view
+    if st.session_state.current_view == "analyzer":
         analyzer_page()
-    elif page == "📚 Education":
+    elif st.session_state.current_view == "education":
         education_page()
-    elif page == "📋 Guidelines":
+    elif st.session_state.current_view == "guidelines":
         guidelines_page()
-    elif page == "📊 History":
-        history_page()
 
 def analyzer_page():
     # Mobile-optimized single column layout
@@ -533,7 +649,6 @@ def analyzer_page():
                     
                     # Placeholder uACR calculation
                     albumin_rgb = color_results['Albumin']['RGB']
-                    creat_rgb = color_results['Creatinine']['RGB']
                     
                     # Simple algorithm for demonstration
                     albumin_score = np.mean(albumin_rgb) / 255
@@ -621,13 +736,13 @@ def analyzer_page():
         st.markdown("### 📋 Interpretation")
         if uacr < 30:
             st.success("✅ **Normal to mildly increased albuminuria**")
-            st.info("Your uACR is within normal range. Continue regular monitoring as recommended.")
+            st.markdown('<p style="color: #1A1A1A;">Your uACR is within normal range. Continue regular monitoring as recommended.</p>', unsafe_allow_html=True)
         elif uacr < 300:
             st.warning("⚠️ **Moderately increased albuminuria**")
-            st.info("This may indicate early kidney damage. Please consult your healthcare provider for further evaluation.")
+            st.markdown('<p style="color: #1A1A1A;">This may indicate early kidney damage. Please consult your healthcare provider for further evaluation.</p>', unsafe_allow_html=True)
         else:
             st.error("🔴 **Severely increased albuminuria**")
-            st.info("This suggests significant kidney damage. Please consult your healthcare provider immediately.")
+            st.markdown('<p style="color: #1A1A1A;">This suggests significant kidney damage. Please consult your healthcare provider immediately.</p>', unsafe_allow_html=True)
         
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -646,6 +761,8 @@ def analyzer_page():
                     'gender': gender
                 }
                 
+                if 'history' not in st.session_state:
+                    st.session_state.history = []
                 st.session_state.history.append(result_entry)
                 st.success("Results saved!")
         
@@ -728,7 +845,7 @@ def education_page():
             barmode='stack',
             plot_bgcolor='white',
             paper_bgcolor='white',
-            font=dict(color='#0066CC')
+            font=dict(color='#003366')
         )
         st.plotly_chart(fig, use_container_width=True)
     
@@ -788,44 +905,15 @@ def guidelines_page():
     | High Risk | Every 6-12 months |
     
     #### When to See a Doctor:
-    - 🔴 eGFR <30
-    - 🔴 uACR >300
-    - 📈 Rapid decline
-    - 💊 Uncontrolled BP
+    - 🔴 **eGFR <30** - Severe decrease in kidney function
+    - 🔴 **uACR >300** - Severely increased albuminuria
+    - 📈 **Rapid decline** - eGFR drops quickly over time
+    - 💊 **Uncontrolled BP** - Blood pressure remains high
     
     ---
     
     > ⚠️ **Disclaimer**: This is a screening tool only. Always consult healthcare providers for medical decisions.
     """)
-
-def history_page():
-    st.subheader("📊 History & Trends")
-    
-    if st.session_state.history:
-        # Convert history to DataFrame
-        df = pd.DataFrame(st.session_state.history)
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df = df.sort_values('timestamp')
-        
-        # Display trends
-        st.line_chart(df.set_index('timestamp')[['uacr', 'egfr']])
-        
-        # Show history
-        st.dataframe(
-            df[['timestamp', 'uacr', 'egfr', 'category']].round(2),
-            use_container_width=True
-        )
-        
-        # Export option
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download History",
-            data=csv,
-            file_name=f"uACR_history_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.info("No history yet. Complete an analysis to see your history!")
 
 if __name__ == "__main__":
     main()
