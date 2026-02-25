@@ -9,47 +9,240 @@ import io
 import colorsys
 import math
 
-# Page configuration
+# Page configuration - optimized for mobile
 st.set_page_config(
     page_title="uACR Dipstick Analyzer",
     page_icon="🧪",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="centered",  # Changed to centered for better mobile view
+    initial_sidebar_state="collapsed"  # Collapsed sidebar on mobile
 )
 
-# Custom CSS for better UI
+# Custom CSS for white/blue theme and mobile optimization
 st.markdown("""
     <style>
+    /* Main container padding for mobile */
+    .main > div {
+        padding: 0 0.5rem;
+    }
+    
+    /* Header styling */
     .main-header {
-        font-size: 3rem;
-        color: #013220;
+        font-size: 2rem;
+        color: #0066CC;
         text-align: center;
-        margin-bottom: 2rem;
+        margin: 1rem 0 1.5rem 0;
+        padding: 0.5rem;
+        background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+        border-radius: 15px;
+        box-shadow: 0 2px 4px rgba(0,102,204,0.1);
     }
+    
+    /* Info box - white with blue border */
     .info-box {
-        background-color: #013220;
-        padding: 2rem;
-        border-radius: 1rem;
+        background-color: #ffffff;
+        padding: 1.2rem;
+        border-radius: 12px;
         margin: 1rem 0;
+        border-left: 4px solid #0066CC;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.08);
     }
+    
+    /* Warning box - white with yellow border */
     .warning-box {
-        background-color: #013220;
+        background-color: #ffffff;
         padding: 1rem;
-        border-radius: 0.5rem;
+        border-radius: 12px;
         margin: 1rem 0;
+        border-left: 4px solid #ffc107;
+        box-shadow: 0 2px 8px rgba(255,193,7,0.1);
     }
+    
+    /* Success box - white with green border */
     .success-box {
-        background-color: #013220;
+        background-color: #ffffff;
         padding: 1rem;
-        border-radius: 0.5rem;
+        border-radius: 12px;
+        margin: 1rem 0;
+        border-left: 4px solid #28a745;
+        box-shadow: 0 2px 8px rgba(40,167,69,0.1);
+    }
+    
+    /* Fact cards - white with blue accents */
+    .fact-card {
+        background-color: #ffffff;
+        padding: 1.2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(0,102,204,0.1);
+        margin: 0.8rem 0;
+        border: 1px solid #e6f0ff;
+        transition: transform 0.2s;
+    }
+    
+    .fact-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,102,204,0.15);
+    }
+    
+    .fact-card h3 {
+        color: #0066CC;
+        margin-bottom: 0.8rem;
+        font-size: 1.2rem;
+    }
+    
+    .fact-card p {
+        color: #4a4a4a;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background: linear-gradient(135deg, #0066CC 0%, #0052a3 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 1rem;
+        width: 100%;
+        transition: all 0.3s;
+        box-shadow: 0 4px 12px rgba(0,102,204,0.2);
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #0052a3 0%, #004080 100%);
+        box-shadow: 0 6px 16px rgba(0,102,204,0.3);
+        transform: translateY(-2px);
+    }
+    
+    /* Radio button styling */
+    .stRadio > div {
+        background-color: #f8faff;
+        padding: 0.8rem;
+        border-radius: 25px;
+        border: 1px solid #e6f0ff;
+    }
+    
+    .stRadio [role="radiogroup"] {
+        gap: 1rem;
+        justify-content: center;
+    }
+    
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #f8faff;
+        border-radius: 10px;
+        color: #0066CC;
+        font-weight: 600;
+        border: 1px solid #e6f0ff;
+    }
+    
+    /* Metric styling */
+    .stMetric {
+        background-color: #ffffff;
+        padding: 1rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,102,204,0.05);
+        border: 1px solid #e6f0ff;
+    }
+    
+    .stMetric label {
+        color: #0066CC !important;
+    }
+    
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background-color: #f8faff;
+        padding: 0.5rem;
+        border-radius: 30px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 25px;
+        padding: 0.5rem 1rem;
+        color: #4a4a4a;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #0066CC !important;
+        color: white !important;
+    }
+    
+    /* Slider styling */
+    .stSlider label {
+        color: #0066CC !important;
+        font-weight: 600;
+    }
+    
+    .stSlider div[data-baseweb="slider"] {
+        background-color: #f8faff;
+    }
+    
+    /* Divider styling */
+    hr {
+        margin: 1.5rem 0;
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #0066CC, transparent);
+    }
+    
+    /* Image caption */
+    .stImage caption {
+        color: #0066CC;
+        font-weight: 500;
+        text-align: center;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: #ffffff;
+        border-right: 1px solid #e6f0ff;
+    }
+    
+    /* Mobile-specific adjustments */
+    @media (max-width: 768px) {
+        .main-header {
+            font-size: 1.8rem;
+        }
+        
+        .fact-card {
+            padding: 1rem;
+        }
+        
+        .stButton > button {
+            padding: 0.6rem 1rem;
+            font-size: 0.95rem;
+        }
+        
+        h3 {
+            font-size: 1.2rem;
+        }
+    }
+    
+    /* Custom class for blue text */
+    .blue-text {
+        color: #0066CC;
+        font-weight: 600;
+    }
+    
+    /* Card container for results */
+    .result-card {
+        background: linear-gradient(135deg, #f8faff 0%, #ffffff 100%);
+        padding: 1.5rem;
+        border-radius: 20px;
+        border: 1px solid #e6f0ff;
         margin: 1rem 0;
     }
-    .fact-card {
-        background-color: black;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin: 1rem 0;
+    
+    /* Color swatch styling */
+    .color-swatch {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 2px solid #ffffff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin: 0 auto;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,6 +252,8 @@ if 'analysis_complete' not in st.session_state:
     st.session_state.analysis_complete = False
 if 'image_captured' not in st.session_state:
     st.session_state.image_captured = None
+if 'history' not in st.session_state:
+    st.session_state.history = []
 
 def rgb_to_hsv(r, g, b):
     """Convert RGB to HSV"""
@@ -219,209 +414,229 @@ def display_kidney_facts():
         }
     ]
     
-    cols = st.columns(2)
-    
-    for i, fact in enumerate(facts):
-        with cols[i % 2]:
-            st.markdown(f"""
-            <div class="fact-card">
-                <h3>{fact['icon']} {fact['title']}</h3>
-                <p>{fact['content']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+    for fact in facts:
+        st.markdown(f"""
+        <div class="fact-card">
+            <h3>{fact['icon']} {fact['title']}</h3>
+            <p>{fact['content']}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 def main():
-    # Header
+    # Header with blue gradient
     st.markdown('<h1 class="main-header">🧪 uACR Dipstick Analyzer</h1>', unsafe_allow_html=True)
     
-    # Sidebar for navigation
-    st.sidebar.title("Navigation")
-    page = st.sidebar.radio("Go to", ["Analyzer", "Education", "Guidelines", "History"])
+    # Mobile-friendly navigation using radio buttons
+    st.markdown("""
+    <div style="background-color: #f8faff; padding: 0.5rem; border-radius: 30px; margin-bottom: 1rem;">
+    """, unsafe_allow_html=True)
     
-    if page == "Analyzer":
+    page = st.radio(
+        "",
+        ["📸 Analyzer", "📚 Education", "📋 Guidelines", "📊 History"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Clean page names
+    if page == "📸 Analyzer":
         analyzer_page()
-    elif page == "Education":
+    elif page == "📚 Education":
         education_page()
-    elif page == "Guidelines":
+    elif page == "📋 Guidelines":
         guidelines_page()
+    elif page == "📊 History":
+        history_page()
 
 def analyzer_page():
-    # Create two columns for layout
-    left_col, right_col = st.columns([1, 1])
+    # Mobile-optimized single column layout
+    st.subheader("📸 Image Capture")
     
-    with left_col:
-        st.subheader("📸 Image Capture")
+    # Image input method
+    input_method = st.radio(
+        "Choose input method:",
+        ["📷 Take Photo", "📁 Upload Image"],
+        horizontal=True
+    )
+    
+    image = None
+    
+    if input_method == "📷 Take Photo":
+        img_file = st.camera_input("Take a photo of your dipstick")
+        if img_file is not None:
+            image = Image.open(img_file)
+            st.session_state.image_captured = image
+    else:
+        img_file = st.file_uploader("Upload dipstick image", type=['jpg', 'jpeg', 'png'])
+        if img_file is not None:
+            image = Image.open(img_file)
+            st.session_state.image_captured = image
+    
+    if image is not None:
+        # Display image
+        st.image(image, caption="Captured Image", use_column_width=True)
         
-        # Image input method
-        input_method = st.radio(
-            "Choose input method:",
-            ["Take Photo", "Upload Image"],
-            horizontal=True
-        )
+        # Check image quality
+        quality_passed, quality_msg, metrics = check_image_quality(image)
         
-        image = None
-        
-        if input_method == "Take Photo":
-            img_file = st.camera_input("Take a photo of your dipstick")
-            if img_file is not None:
-                image = Image.open(img_file)
-                st.session_state.image_captured = image
-        else:
-            img_file = st.file_uploader("Upload dipstick image", type=['jpg', 'jpeg', 'png'])
-            if img_file is not None:
-                image = Image.open(img_file)
-                st.session_state.image_captured = image
-        
-        if image is not None:
-            # Display image
-            st.image(image, caption="Captured Image", use_column_width=True)
+        if quality_passed:
+            st.markdown(f'<div class="success-box">✅ {quality_msg}</div>', unsafe_allow_html=True)
             
-            # Check image quality
-            quality_passed, quality_msg, metrics = check_image_quality(image)
-            
-            if quality_passed:
-                st.markdown(f'<div class="success-box">✅ {quality_msg}</div>', unsafe_allow_html=True)
-                
-                # Show image metrics
-                with st.expander("Image Quality Metrics"):
-                    col1, col2, col3 = st.columns(3)
-                    col1.metric("Brightness", f"{metrics['brightness']:.1f}")
-                    col2.metric("Contrast", f"{metrics['contrast']:.1f}")
-                    col3.metric("Sharpness", f"{metrics['sharpness']:.1f}")
-                
-                # Let user define pad positions
-                st.markdown("### Define Pad Positions")
-                st.markdown("Click on the image to mark the center of each pad")
-                
-                # Use relative coordinates for flexibility
-                pad_positions = {}
-                
+            # Show image metrics
+            with st.expander("📊 Image Quality Metrics"):
                 col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.markdown("**Albumin Pad**")
-                    albumin_x = st.slider("Albumin X position (%)", 0, 100, 30) / 100
-                    albumin_y = st.slider("Albumin Y position (%)", 0, 100, 40) / 100
-                    pad_positions['Albumin'] = (albumin_x, albumin_y)
-                
-                with col2:
-                    st.markdown("**Creatinine Pad**")
-                    creat_x = st.slider("Creatinine X position (%)", 0, 100, 50) / 100
-                    creat_y = st.slider("Creatinine Y position (%)", 0, 100, 40) / 100
-                    pad_positions['Creatinine'] = (creat_x, creat_y)
-                
-                with col3:
-                    st.markdown("**Control Pad**")
-                    control_x = st.slider("Control X position (%)", 0, 100, 70) / 100
-                    control_y = st.slider("Control Y position (%)", 0, 100, 40) / 100
-                    pad_positions['Control'] = (control_x, control_y)
-                
-                if st.button("🔍 Analyze Dipstick", type="primary"):
-                    with st.spinner("Analyzing colors..."):
-                        # Measure colors
-                        color_results = measure_pad_colors(image, pad_positions)
-                        st.session_state.color_results = color_results
-                        
-                        # Placeholder uACR calculation (in reality, would map colors to concentration)
-                        # This is a simplified example based on color values
-                        albumin_rgb = color_results['Albumin']['RGB']
-                        creat_rgb = color_results['Creatinine']['RGB']
-                        
-                        # Simple algorithm for demonstration
-                        albumin_score = np.mean(albumin_rgb) / 255
-                        creat_score = np.mean(creat_rgb) / 255
-                        
-                        # Generate uACR value based on color (placeholder logic)
-                        uacr_value = albumin_score * 300 + np.random.uniform(-20, 20)
-                        uacr_value = max(5, min(1000, uacr_value))
-                        
-                        st.session_state.uacr_value = uacr_value
-                        st.session_state.analysis_complete = True
-                        
-                        st.success("Analysis complete!")
-            else:
-                st.markdown(f'<div class="warning-box">⚠️ {quality_msg}</div>', unsafe_allow_html=True)
-                
-                # Tips for better image
-                with st.expander("Tips for better images"):
-                    st.markdown("""
-                    - Ensure even lighting
-                    - Avoid shadows on the dipstick
-                    - Hold camera steady
-                    - Include the color reference chart
-                    - Keep dipstick in focus
-                    - Place on a neutral background
-                    """)
-    
-    with right_col:
-        if st.session_state.analysis_complete:
-            st.subheader("📊 Analysis Results")
+                col1.metric("Brightness", f"{metrics['brightness']:.1f}")
+                col2.metric("Contrast", f"{metrics['contrast']:.1f}")
+                col3.metric("Sharpness", f"{metrics['sharpness']:.1f}")
             
-            # Display color measurements
-            with st.expander("Color Measurements", expanded=True):
-                for pad, values in st.session_state.color_results.items():
-                    rgb = values['RGB']
-                    hsv = values['HSV']
-                    
-                    st.markdown(f"**{pad}**")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    # RGB display
-                    color_hex = '#{:02x}{:02x}{:02x}'.format(
-                        int(rgb[0]), int(rgb[1]), int(rgb[2])
-                    )
-                    
-                    col1.markdown(f"🎨 RGB: {int(rgb[0])}, {int(rgb[1])}, {int(rgb[2])}")
-                    col2.markdown(f"🌈 HSV: {hsv[0]:.1f}°, {hsv[1]:.1f}, {hsv[2]:.1f}")
-                    col3.markdown(f"<div style='background-color:{color_hex}; width:50px; height:20px; border-radius:5px;'></div>", 
-                                unsafe_allow_html=True)
+            # Let user define pad positions
+            st.markdown("### 🎯 Define Pad Positions")
+            st.markdown("Adjust the sliders to match your dipstick")
             
-            st.divider()
+            # Use relative coordinates for flexibility
+            pad_positions = {}
             
-            # Demographics input
-            st.subheader("👤 Demographics")
-            
+            # Pad 1: Albumin
+            st.markdown("**Albumin Pad**")
             col1, col2 = st.columns(2)
             with col1:
-                age = st.number_input("Age", min_value=18, max_value=120, value=45)
-            
+                albumin_x = st.slider("X position (%)", 0, 100, 30, key="alb_x") / 100
             with col2:
-                gender = st.selectbox("Gender", ["Male", "Female"])
+                albumin_y = st.slider("Y position (%)", 0, 100, 40, key="alb_y") / 100
+            pad_positions['Albumin'] = (albumin_x, albumin_y)
             
-            # Calculate eGFR
-            egfr = calculate_egfr(age, None, gender.lower())
+            # Pad 2: Creatinine
+            st.markdown("**Creatinine Pad**")
+            col1, col2 = st.columns(2)
+            with col1:
+                creat_x = st.slider("X position (%)", 0, 100, 50, key="creat_x") / 100
+            with col2:
+                creat_y = st.slider("Y position (%)", 0, 100, 40, key="creat_y") / 100
+            pad_positions['Creatinine'] = (creat_x, creat_y)
             
-            # Display uACR and eGFR
-            uacr = st.session_state.uacr_value
-            category, color = get_uacr_category(uacr)
+            # Pad 3: Control
+            st.markdown("**Control Pad**")
+            col1, col2 = st.columns(2)
+            with col1:
+                control_x = st.slider("X position (%)", 0, 100, 70, key="ctrl_x") / 100
+            with col2:
+                control_y = st.slider("Y position (%)", 0, 100, 40, key="ctrl_y") / 100
+            pad_positions['Control'] = (control_x, control_y)
             
-            # Metrics display
-            col1, col2, col3 = st.columns(3)
-            col1.metric("uACR", f"{uacr:.1f} mg/g")
-            col2.metric("eGFR", f"{egfr} mL/min/1.73m²")
-            col3.markdown(f"**Category:** <span style='color:{color}'>{category}</span>", 
-                         unsafe_allow_html=True)
+            if st.button("🔍 Analyze Dipstick", type="primary"):
+                with st.spinner("Analyzing colors..."):
+                    # Measure colors
+                    color_results = measure_pad_colors(image, pad_positions)
+                    st.session_state.color_results = color_results
+                    
+                    # Placeholder uACR calculation
+                    albumin_rgb = color_results['Albumin']['RGB']
+                    creat_rgb = color_results['Creatinine']['RGB']
+                    
+                    # Simple algorithm for demonstration
+                    albumin_score = np.mean(albumin_rgb) / 255
+                    
+                    # Generate uACR value based on color (placeholder logic)
+                    uacr_value = albumin_score * 300 + np.random.uniform(-20, 20)
+                    uacr_value = max(5, min(1000, uacr_value))
+                    
+                    st.session_state.uacr_value = uacr_value
+                    st.session_state.analysis_complete = True
+                    
+                    st.success("Analysis complete!")
+                    st.rerun()
+        else:
+            st.markdown(f'<div class="warning-box">⚠️ {quality_msg}</div>', unsafe_allow_html=True)
             
-            # Interpretation
-            st.markdown(f'<div class="info-box">', unsafe_allow_html=True)
-            st.markdown("### 📋 Interpretation")
-            
-            if uacr < 30:
-                st.markdown("✅ **Normal to mildly increased albuminuria**")
-                st.markdown("Your uACR is within normal range. Continue regular monitoring as recommended.")
-            elif uacr < 300:
-                st.markdown("⚠️ **Moderately increased albuminuria**")
-                st.markdown("This may indicate early kidney damage. Please consult your healthcare provider for further evaluation.")
-            else:
-                st.markdown("🔴 **Severely increased albuminuria**")
-                st.markdown("This suggests significant kidney damage. Please consult your healthcare provider immediately.")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Save results button
+            # Tips for better image
+            with st.expander("💡 Tips for better images"):
+                st.markdown("""
+                - Ensure even lighting
+                - Avoid shadows on the dipstick
+                - Hold camera steady
+                - Keep dipstick in focus
+                - Place on a neutral background
+                """)
+    
+    # Results section
+    if st.session_state.analysis_complete:
+        st.markdown("---")
+        st.subheader("📊 Analysis Results")
+        
+        # Results card
+        st.markdown('<div class="result-card">', unsafe_allow_html=True)
+        
+        # Color measurements
+        with st.expander("🎨 Color Measurements", expanded=True):
+            for pad, values in st.session_state.color_results.items():
+                rgb = values['RGB']
+                hsv = values['HSV']
+                
+                st.markdown(f"**{pad}**")
+                col1, col2, col3 = st.columns([2, 2, 1])
+                
+                # RGB display
+                color_hex = '#{:02x}{:02x}{:02x}'.format(
+                    int(rgb[0]), int(rgb[1]), int(rgb[2])
+                )
+                
+                col1.markdown(f"RGB: {int(rgb[0])}, {int(rgb[1])}, {int(rgb[2])}")
+                col2.markdown(f"HSV: {hsv[0]:.1f}°, {hsv[1]:.1f}%, {hsv[2]:.1f}%")
+                col3.markdown(f"<div style='background-color:{color_hex}; width:40px; height:40px; border-radius:10px; border:2px solid #0066CC;'></div>", 
+                            unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Demographics input
+        st.subheader("👤 Demographics")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            age = st.number_input("Age", min_value=18, max_value=120, value=45)
+        with col2:
+            gender = st.selectbox("Gender", ["Male", "Female"])
+        
+        # Calculate eGFR
+        egfr = calculate_egfr(age, None, gender.lower())
+        
+        # Display uACR and eGFR
+        uacr = st.session_state.uacr_value
+        category, cat_color = get_uacr_category(uacr)
+        
+        # Metrics display
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("uACR", f"{uacr:.1f} mg/g")
+        with col2:
+            st.metric("eGFR", f"{egfr} mL/min/1.73m²")
+        
+        st.markdown(f"**Category:** <span style='color:{cat_color}; font-weight:600;'>{category}</span>", 
+                   unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Interpretation
+        st.markdown("### 📋 Interpretation")
+        if uacr < 30:
+            st.success("✅ **Normal to mildly increased albuminuria**")
+            st.info("Your uACR is within normal range. Continue regular monitoring as recommended.")
+        elif uacr < 300:
+            st.warning("⚠️ **Moderately increased albuminuria**")
+            st.info("This may indicate early kidney damage. Please consult your healthcare provider for further evaluation.")
+        else:
+            st.error("🔴 **Severely increased albuminuria**")
+            st.info("This suggests significant kidney damage. Please consult your healthcare provider immediately.")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Action buttons
+        col1, col2 = st.columns(2)
+        with col1:
             if st.button("💾 Save Results"):
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-                # Create results dictionary
                 result_entry = {
                     'timestamp': timestamp,
                     'uacr': uacr,
@@ -432,11 +647,10 @@ def analyzer_page():
                 }
                 
                 st.session_state.history.append(result_entry)
-                st.success("Results saved to history!")
-            
-            # Download report
+                st.success("Results saved!")
+        
+        with col2:
             if st.button("📄 Download Report"):
-                # Create report content
                 report = f"""
 uACR Dipstick Analysis Report
 Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -462,179 +676,156 @@ This is a screening tool only. Please consult with a healthcare professional for
 """
                 
                 st.download_button(
-                    label="Download as Text",
+                    label="Download",
                     data=report,
                     file_name=f"uACR_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                     mime="text/plain"
                 )
-        else:
-            # Show placeholder and instructions
-            st.subheader("ℹ️ Instructions")
-            st.markdown("""
-            <div class="info-box">
-            1. Take or upload a clear photo of your dipstick
-            2. Ensure good lighting and focus
-            3. Adjust the pad position sliders to match your dipstick
-            4. Click 'Analyze' when ready
-            5. Enter your demographic information
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Display quick facts
-            st.subheader("📚 Quick Facts")
-            display_kidney_facts()
+    else:
+        # Show instructions
+        st.markdown('<div class="info-box">', unsafe_allow_html=True)
+        st.markdown("""
+        ### 📱 How to use:
+        1. **Take or upload** a clear photo of your dipstick
+        2. **Adjust the sliders** to mark each test pad
+        3. **Click Analyze** to measure colors
+        4. **Enter your age and gender**
+        5. **View your results** and save for tracking
+        """)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Display quick facts
+        st.subheader("📚 Quick Facts")
+        display_kidney_facts()
 
 def education_page():
     st.subheader("📚 Understanding Kidney Health")
     
-    tabs = st.tabs(["uACR Explained", "eGFR Explained", "Risk Factors", "Prevention"])
+    tabs = st.tabs(["uACR", "eGFR", "Risk Factors", "Prevention"])
     
     with tabs[0]:
         st.markdown("""
         ### What is uACR?
         
-        **Urine Albumin-to-Creatinine Ratio (uACR)** is a test that measures the amount of albumin (a protein) in your urine compared to creatinine.
+        **Urine Albumin-to-Creatinine Ratio** measures protein (albumin) in your urine.
         
-        #### Why is it important?
-        - Detects early kidney damage
-        - Monitors kidney disease progression
-        - Assesses cardiovascular risk
+        #### Your Results:
+        - 🟢 **<30 mg/g**: Normal
+        - 🟡 **30-300 mg/g**: Moderate increase
+        - 🔴 **>300 mg/g**: Severe increase
         
-        #### Understanding Your Results:
-        - **<30 mg/g**: Normal to mildly increased
-        - **30-300 mg/g**: Moderately increased (early kidney disease)
-        - **>300 mg/g**: Severely increased (advanced kidney disease)
+        Early detection can slow kidney disease progression.
         """)
         
-        # Add a visual representation
+        # Visual representation
         fig = go.Figure(data=[
-            go.Bar(name='Normal', x=['<30 mg/g'], y=[30], marker_color='green'),
-            go.Bar(name='Moderate', x=['30-300 mg/g'], y=[270], marker_color='yellow'),
-            go.Bar(name='Severe', x=['>300 mg/g'], y=[100], marker_color='red')
+            go.Bar(name='Normal', x=['<30 mg/g'], y=[30], marker_color='#28a745'),
+            go.Bar(name='Moderate', x=['30-300 mg/g'], y=[270], marker_color='#ffc107'),
+            go.Bar(name='Severe', x=['>300 mg/g'], y=[100], marker_color='#dc3545')
         ])
-        fig.update_layout(title="uACR Categories", barmode='stack')
-        st.plotly_chart(fig)
+        fig.update_layout(
+            title="uACR Categories",
+            barmode='stack',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color='#0066CC')
+        )
+        st.plotly_chart(fig, use_container_width=True)
     
     with tabs[1]:
         st.markdown("""
         ### What is eGFR?
         
-        **Estimated Glomerular Filtration Rate (eGFR)** estimates how well your kidneys are filtering waste from your blood.
+        **Estimated Glomerular Filtration Rate** shows kidney filtering ability.
         
-        #### CKD Stages based on eGFR:
-        | Stage | eGFR (mL/min) | Description |
-        |-------|---------------|-------------|
-        | 1 | ≥90 | Normal kidney function |
-        | 2 | 60-89 | Mildly decreased |
-        | 3a | 45-59 | Mild to moderate decrease |
-        | 3b | 30-44 | Moderate to severe decrease |
+        | Stage | eGFR | Status |
+        |-------|------|--------|
+        | 1 | ≥90 | Normal |
+        | 2 | 60-89 | Mild decrease |
+        | 3 | 30-59 | Moderate decrease |
         | 4 | 15-29 | Severe decrease |
         | 5 | <15 | Kidney failure |
         """)
     
     with tabs[2]:
         st.markdown("""
-        ### Risk Factors for Kidney Disease
+        ### Risk Factors
         
-        #### Major Risk Factors:
-        - 🩺 **Diabetes** - Leading cause of kidney disease
-        - ❤️ **Hypertension** - High blood pressure damages kidney vessels
-        - 👴 **Age >60** - Increased risk with age
-        - 🧬 **Family History** - Genetic predisposition
-        - 🏥 **Cardiovascular Disease** - Related to kidney health
-        - ⚖️ **Obesity** - Increases diabetes and hypertension risk
-        
-        #### Other Risk Factors:
-        - Smoking
-        - Excessive alcohol use
-        - Autoimmune diseases
-        - Recurrent kidney infections
-        - Prolonged use of certain medications (NSAIDs)
+        #### Major Risks:
+        - 🩺 **Diabetes** - Leading cause
+        - ❤️ **High blood pressure**
+        - 👴 **Age >60**
+        - 🧬 **Family history**
+        - ⚖️ **Obesity**
+        - 🚬 **Smoking**
         """)
     
     with tabs[3]:
         st.markdown("""
-        ### Prevention and Lifestyle Tips
+        ### Prevention Tips
         
-        #### 🥗 Diet:
-        - Reduce sodium intake
-        - Limit processed foods
-        - Control protein consumption if advised
-        - Stay hydrated
-        
-        #### 🏃‍♂️ Exercise:
-        - 150 minutes moderate activity weekly
-        - Maintain healthy weight
-        - Control blood pressure
-        
-        #### 🩺 Regular Monitoring:
-        - Annual check-ups if at risk
-        - Monitor blood pressure at home
-        - Regular blood sugar testing if diabetic
-        - Know your family history
+        #### Healthy Habits:
+        - 🥗 **Low sodium diet**
+        - 💧 **Stay hydrated**
+        - 🏃 **Regular exercise**
+        - 📊 **Monitor blood pressure**
+        - 🩺 **Annual check-ups**
+        - 💊 **Limit NSAIDs**
         """)
 
 def guidelines_page():
     st.subheader("📋 Clinical Guidelines")
     
-    col1, col2 = st.columns([2, 1])
+    st.markdown("""
+    ### KDIGO 2024 Guidelines
     
-    with col1:
-        st.markdown("""
-        ### KDIGO 2024 Guidelines
-        
-        #### Screening Recommendations:
-        
-        **For General Population:**
-        - No routine screening recommended
-        - Assess risk factors during periodic health exams
-        
-        **For High-Risk Individuals:**
-        - Screen annually if:
-            - Diabetes (Type 1 or 2)
-            - Hypertension
-            - Cardiovascular disease
-            - Family history of kidney disease
-            - Age >60 years
-            - Previous acute kidney injury
-        
-        #### Testing Frequency:
-        | Risk Level | uACR Testing | eGFR Testing |
-        |------------|--------------|--------------|
-        | Low Risk | Every 3-5 years | Every 3-5 years |
-        | Moderate Risk | Annually | Annually |
-        | High Risk | Every 6-12 months | Every 6-12 months |
-        
-        #### Treatment Targets:
-        - **Blood Pressure**: <130/80 mmHg for most patients
-        - **uACR Reduction**: Aim for >30% reduction in high-risk patients
-        - **eGFR Decline**: Slow progression to <2-3 mL/min/year
-        """)
+    #### Screening Frequency:
     
-    with col2:
-        st.markdown("""
-        ### Quick Reference
+    | Risk Level | Testing |
+    |------------|---------|
+    | Low Risk | Every 3-5 years |
+    | Moderate Risk | Annually |
+    | High Risk | Every 6-12 months |
+    
+    #### When to See a Doctor:
+    - 🔴 eGFR <30
+    - 🔴 uACR >300
+    - 📈 Rapid decline
+    - 💊 Uncontrolled BP
+    
+    ---
+    
+    > ⚠️ **Disclaimer**: This is a screening tool only. Always consult healthcare providers for medical decisions.
+    """)
+
+def history_page():
+    st.subheader("📊 History & Trends")
+    
+    if st.session_state.history:
+        # Convert history to DataFrame
+        df = pd.DataFrame(st.session_state.history)
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        df = df.sort_values('timestamp')
         
-        #### When to Refer:
-        - eGFR <30 mL/min
-        - Rapid eGFR decline (>5 mL/min/year)
-        - uACR >300 mg/g
-        - Difficult to control BP
-        - Suspected glomerulonephritis
+        # Display trends
+        st.line_chart(df.set_index('timestamp')[['uacr', 'egfr']])
         
-        #### Emergency Signs:
-        - Severe hypertension
-        - Pulmonary edema
-        - Pericarditis
-        - Uremic symptoms
-        - Severe hyperkalemia
-        """)
+        # Show history
+        st.dataframe(
+            df[['timestamp', 'uacr', 'egfr', 'category']].round(2),
+            use_container_width=True
+        )
         
-        st.markdown("""
-        <div class="warning-box">
-        ⚠️ This is a screening tool only. Always consult healthcare providers for medical decisions.
-        </div>
-        """, unsafe_allow_html=True)
+        # Export option
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download History",
+            data=csv,
+            file_name=f"uACR_history_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("No history yet. Complete an analysis to see your history!")
 
 if __name__ == "__main__":
     main()
