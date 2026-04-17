@@ -1,440 +1,532 @@
 import streamlit as st
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import cv2
 import colorsys
 
-# FORCE LIGHT MODE - MUST BE FIRST
+# ── Page config (MUST be first Streamlit call) ─────────────────────────────
 st.set_page_config(
-    page_title="uACR Analyzer", 
-    page_icon="🧪", 
+    page_title="uACR Dipstick Analyzer",
+    page_icon="🧪",
     layout="centered",
-    initial_sidebar_state="auto"
+    initial_sidebar_state="collapsed",
 )
 
-# Inject CSS to force light mode
+# ── CSS ────────────────────────────────────────────────────────────────────
 st.markdown("""
-    <style>
-        /* Force white background everywhere */
-        .stApp {
-            background: white !important;
-        }
-        
-        /* Override Streamlit's default dark mode */
-        .stApp > header {
-            background-color: white !important;
-        }
-        
-        /* Make sure all text is dark */
-        * {
-            color: #000000 !important;
-        }
-        
-        /* Keep your blue buttons */
-        .stButton > button {
-            background-color: #0066CC !important;
-            color: white !important;
-        }
-        
-        /* Keep info boxes light blue */
-        .info-box, .result-card {
-            background-color: #E6F3FF !important;
-        }
-    </style>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+.stApp {
+    background: #F5F4F0 !important;
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Hide Streamlit chrome ── */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding-top: 2rem !important; max-width: 680px !important; }
+
+/* ── Page title ── */
+.page-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 500;
+    color: #1A1A1A;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.2rem;
+}
+.page-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: #888;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+}
+
+/* ── Cards ── */
+.card {
+    background: #FFFFFF;
+    border: 1px solid #E2E0D8;
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem;
+    margin-bottom: 1.2rem;
+}
+.card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: #AAA;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.8rem;
+}
+
+/* ── Radio buttons ── */
+.stRadio > label { display: none; }
+.stRadio > div { gap: 0.5rem; }
+.stRadio [data-baseweb="radio"] > label {
+    background: #F5F4F0;
+    border: 1px solid #E2E0D8;
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 0.85rem;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.stRadio [data-baseweb="radio"][aria-checked="true"] > label {
+    background: #1A1A1A;
+    border-color: #1A1A1A;
+    color: #FFF;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    background: #1A1A1A !important;
+    color: #FFF !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.04em !important;
+    padding: 0.55rem 1.2rem !important;
+    transition: opacity 0.15s !important;
+    width: 100%;
+}
+.stButton > button:hover { opacity: 0.82 !important; }
+
+/* ── Metrics ── */
+[data-testid="metric-container"] {
+    background: #F5F4F0;
+    border: 1px solid #E2E0D8;
+    border-radius: 10px;
+    padding: 0.8rem 1rem !important;
+}
+[data-testid="metric-container"] label {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.7rem !important;
+    color: #888 !important;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 1.4rem !important;
+    color: #1A1A1A !important;
+}
+
+/* ── Status banners ── */
+.status-normal   { background:#EDFAF1; border-left:3px solid #27AE60; border-radius:6px; padding:0.8rem 1rem; }
+.status-moderate { background:#FFF8E6; border-left:3px solid #F39C12; border-radius:6px; padding:0.8rem 1rem; }
+.status-severe   { background:#FEECEC; border-left:3px solid #E74C3C; border-radius:6px; padding:0.8rem 1rem; }
+.status-label    { font-family:'DM Mono',monospace; font-size:0.72rem; letter-spacing:0.1em; text-transform:uppercase; font-weight:500; }
+.status-sub      { font-size:0.83rem; color:#555; margin-top:0.3rem; }
+
+/* ── Color swatches ── */
+.swatch-row { display:flex; gap:1rem; margin-top:0.6rem; }
+.swatch-item { flex:1; text-align:center; }
+.swatch-box  { height:40px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); margin-bottom:0.4rem; }
+.swatch-name { font-family:'DM Mono',monospace; font-size:0.7rem; color:#888; }
+.swatch-rgb  { font-family:'DM Mono',monospace; font-size:0.65rem; color:#AAA; }
+
+/* ── Detection badge ── */
+.detect-badge {
+    display:inline-block;
+    font-family:'DM Mono',monospace;
+    font-size:0.68rem;
+    letter-spacing:0.08em;
+    padding:3px 10px;
+    border-radius:20px;
+    margin-right:6px;
+    margin-bottom:4px;
+}
+.badge-found   { background:#EDFAF1; color:#27AE60; border:1px solid #A9DFB8; }
+.badge-missing { background:#FEECEC; color:#E74C3C; border:1px solid #F4AEAE; }
+
+/* ── Divider ── */
+hr { border:none; border-top:1px solid #E2E0D8; margin:1rem 0; }
+
+/* ── Force text color ── */
+p, span, div, label { color: #1A1A1A; }
+</style>
 """, unsafe_allow_html=True)
 
-# CSS styling
-st.markdown("""
-    <style>
-    .stButton > button { background-color: #0066CC !important; color: white !important; border-radius: 25px !important; }
-    h1, h2, h3 { color: #0066CC !important; }
-    .info-box { background-color: #E6F3FF; border-left: 5px solid #0066CC; padding: 15px; border-radius: 10px; margin: 10px 0; }
-    .result-card { background-color: #E6F3FF; border: 2px solid #0066CC; padding: 20px; border-radius: 15px; margin: 10px 0; }
-    </style>
-""", unsafe_allow_html=True)
-
-# Initialize session state
-if 'results' not in st.session_state:
+# ── Session state ──────────────────────────────────────────────────────────
+if "results" not in st.session_state:
     st.session_state.results = None
 
-# Back end
 
-def load_image_for_processing(image_input):
-    """
-    Universal image loader that handles HEIC, file paths, URLs, and numpy arrays
-    
-    Args:
-        image_input: Can be:
-            - Path to HEIC file (string)
-            - Path to JPG/PNG file (string)
-            - URL (string starting with http)
-            - numpy array (already loaded image)
-            - PIL Image object
-    
-    Returns:
-        RGB numpy array ready for find_reference_strips()
-    """
-    import requests
-    from urllib.parse import urlparse
-    
-    # Case 1: Already a numpy array
-    if isinstance(image_input, np.ndarray):
-        # Assume it's RGB, if BGR convert
-        if image_input.shape[-1] == 3:
-            return image_input
-        else:
-            raise ValueError(f"Unexpected array shape: {image_input.shape}")
-    
-    # Case 2: PIL Image
-    if hasattr(image_input, 'mode') and hasattr(image_input, 'convert'):
-        return np.array(image_input.convert('RGB'))
-    
-    # Case 3: String (path or URL)
-    if isinstance(image_input, str):
-        # Check if URL
-        parsed = urlparse(image_input)
-        if parsed.scheme in ('http', 'https'):
-            # Download from URL
-            response = requests.get(image_input, stream=True)
-            response.raise_for_status()
-            
-            # Check content type
-            content_type = response.headers.get('content-type', '').lower()
-            
-            if 'heic' in content_type or image_input.lower().endswith('.heic'):
-                # Save to temp file and convert
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.heic', delete=False) as tmp:
-                    tmp.write(response.content)
-                    tmp_path = tmp.name
-                
-                try:
-                    result = convert_heic_to_readable(tmp_path)
-                    return result
-                finally:
-                    import os
-                    os.unlink(tmp_path)
-            else:
-                # Regular image from URL
-                from PIL import Image
-                img = Image.open(response.raw)
-                return np.array(img.convert('RGB'))
-        
-        else:
-            # Local file path
-            if image_input.lower().endswith(('.heic', '.heif')):
-                return convert_heic_to_readable(image_input)
-            else:
-                # Regular image format
-                img = cv2.imread(image_input)
-                if img is None:
-                    raise ValueError(f"Could not read image: {image_input}")
-                return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    raise ValueError(f"Unsupported image input type: {type(image_input)}")
-
-
-def batch_process_heic_files(folder_path, output_folder=None):
-    """
-    Batch convert all HEIC files in a folder to JPG for testing
-    
-    Args:
-        folder_path: Folder containing HEIC files
-        output_folder: Where to save JPGs (default: same folder)
-    """
-    import glob
-    import os
-    from pathlib import Path
-    
-    if output_folder is None:
-        output_folder = folder_path
-    
-    os.makedirs(output_folder, exist_ok=True)
-    
-    heic_files = glob.glob(os.path.join(folder_path, "*.heic")) + \
-                 glob.glob(os.path.join(folder_path, "*.HEIC"))
-    
-    results = []
-    
-    for heic_path in heic_files:
-        try:
-            # Convert to numpy array
-            img_rgb = convert_heic_to_readable(heic_path)
-            
-            # Save as JPG for easy viewing
-            stem = Path(heic_path).stem
-            jpg_path = os.path.join(output_folder, f"{stem}.jpg")
-            
-            # Convert RGB to BGR for cv2
-            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(jpg_path, img_bgr)
-            
-            results.append({'file': heic_path, 'status': 'success', 'output': jpg_path})
-            print(f"✓ Converted: {Path(heic_path).name} -> {Path(jpg_path).name}")
-            
-        except Exception as e:
-            results.append({'file': heic_path, 'status': 'failed', 'error': str(e)})
-            print(f"✗ Failed: {Path(heic_path).name} - {e}")
-    
-    # Summary
-    success_count = sum(1 for r in results if r['status'] == 'success')
-    print(f"\nConverted {success_count}/{len(heic_files)} files")
-    
-    return results
+# ══════════════════════════════════════════════════════════════════════════════
+# BACKEND FUNCTIONS
+# ══════════════════════════════════════════════════════════════════════════════
 
 def find_reference_strips(image):
-    """Find RGB reference strips with adaptive thresholds and robust detection"""
+    """Find RGB reference strips with adaptive thresholds and robust detection."""
     img = np.array(image)
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    
-    # Adaptive thresholds based on image statistics
+
     img_area = img.shape[0] * img.shape[1]
-    min_strip_area = img_area * 0.001  # 0.1% of image area
-    max_strip_area = img_area * 0.2    # 20% of image area
-    
-    # More permissive ranges (can be made adaptive)
+    min_strip_area = img_area * 0.001
+    max_strip_area = img_area * 0.2
+
     color_ranges = {
-        'Red': [
-            ([0, 30, 30], [10, 255, 255]),      # Lower saturation threshold
-            ([160, 30, 30], [180, 255, 255])    # Extended range
-        ],
-        'Green': [([35, 30, 30], [85, 255, 255])],
-        'Blue': [([100, 30, 30], [130, 255, 255])]
+        "Red":   [([0, 30, 30], [10, 255, 255]), ([160, 30, 30], [180, 255, 255])],
+        "Green": [([35, 30, 30], [85, 255, 255])],
+        "Blue":  [([100, 30, 30], [130, 255, 255])],
     }
-    
+
     refs = {}
-    
+
     for name, ranges in color_ranges.items():
         combined_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        
         for lower, upper in ranges:
             mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
             combined_mask = cv2.bitwise_or(combined_mask, mask)
-        
-        # Dynamic kernel size based on image dimensions
+
         kernel_size = max(3, min(img.shape[0], img.shape[1]) // 200)
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
-        
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
-        
+
         contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Filter and collect all valid contours
+
         valid_contours = []
         for contour in contours:
             area = cv2.contourArea(contour)
             if area < min_strip_area or area > max_strip_area:
                 continue
-                
             x, y, w, h = cv2.boundingRect(contour)
-            
-            # More permissive aspect ratio
             aspect_ratio = w / h if h > 0 else 0
-            if 0.3 < aspect_ratio < 3.0:  # Much wider range
-                # Check if contour is roughly rectangular
+            if 0.3 < aspect_ratio < 3.0:
                 peri = cv2.arcLength(contour, True)
                 approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
-                if len(approx) >= 4:  # At least quadrilateral
+                if len(approx) >= 4:
                     valid_contours.append((area, x, y, w, h, contour))
-        
+
         if valid_contours:
-            # Sort by area and take best candidate
             valid_contours.sort(key=lambda c: c[0], reverse=True)
-            
-            # Try top 3 contours, pick one with best aspect ratio
-            best = None
-            best_score = -1
+            best, best_score = None, -1
             for area, x, y, w, h, contour in valid_contours[:3]:
-                # Score based on area and aspect ratio
-                aspect_score = 1.0 - min(abs(1.0 - w/h), 1.0)
-                area_score = area / max_strip_area
-                score = aspect_score * 0.6 + area_score * 0.4
-                
+                aspect_score = 1.0 - min(abs(1.0 - w / h), 1.0)
+                area_score   = area / max_strip_area
+                score        = aspect_score * 0.6 + area_score * 0.4
                 if score > best_score:
                     best_score = score
                     best = (area, x, y, w, h, contour)
-            
+
             if best:
                 area, x, y, w, h, contour = best
                 refs[name] = {
-                    'center': (x + w//2, y + h//2),
-                    'bounds': (x, y, w, h),
-                    'area': area,
-                    'aspect_ratio': w/h,
-                    'score': best_score
+                    "center":       (x + w // 2, y + h // 2),
+                    "bounds":       (x, y, w, h),
+                    "area":         area,
+                    "aspect_ratio": w / h,
+                    "score":        best_score,
                 }
-    
-    # More robust validation
-    if len(refs) < 3:
-        missing = set(['Blue', 'Red', 'Green']) - set(refs.keys())
-        print(f"Error: Missing strips for colors: {missing}")
-        return refs  # Return what we found, let caller handle
-    
-    # Validate ordering with tolerance
-    ordered = sorted(refs.items(), key=lambda item: item[1]['center'][1])
-    detected_order = [name for name, _ in ordered]
-    
-    expected_order = ['Blue', 'Red', 'Green']
-    if detected_order != expected_order:
-        print(f"Warning: Order mismatch. Found: {detected_order}, Expected: {expected_order}")
-        # Could attempt to re-map based on expected order
-    
-    # Use relative tolerance for alignment
-    x_centers = [refs[name]['center'][0] for name in refs]
-    x_range = max(x_centers) - min(x_centers)
-    img_width = img.shape[1]
-    relative_x_range = x_range / img_width
-    
-    if relative_x_range > 0.1:  # Centers vary more than 10% of image width
-        print(f"Warning: Strips not well-aligned (X range: {relative_x_range:.1%} of width)")
-    
+
     return refs
 
-def estimate_pads(refs):
-    """Estimate pad positions from references"""
-    white = refs['white']
-    gray = refs['gray']
-    
-    dx = gray[0] - white[0]
-    dy = gray[1] - white[1]
-    
-    pads = {
-        'Albumin': (white[0] + dx, white[1] + dy//2),
-        'Creatinine': (white[0] + dx*2, white[1] + dy//2),
-        'pH': (white[0] + dx*3, white[1] + dy//2)
+
+def draw_strip_highlights(image: Image.Image, refs: dict) -> Image.Image:
+    """
+    Draw labelled bounding boxes around detected reference strips.
+    Returns an annotated RGB PIL image.
+    """
+    img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+    COLOR_MAP = {
+        "Red":   (0,   0,   220),   # BGR
+        "Green": (0,   180,  30),
+        "Blue":  (210,  80,   0),
     }
+    LABEL_BG = {
+        "Red":   (0,   0,   220),
+        "Green": (0,   180,  30),
+        "Blue":  (210,  80,   0),
+    }
+
+    font       = cv2.FONT_HERSHEY_DUPLEX
+    font_scale = max(0.45, img_cv.shape[0] / 2000)
+    thickness  = max(2, img_cv.shape[0] // 400)
+
+    for name, info in refs.items():
+        x, y, w, h = info["bounds"]
+        bgr         = COLOR_MAP.get(name, (200, 200, 200))
+        label_bgr   = LABEL_BG.get(name, (200, 200, 200))
+
+        # Bounding box
+        cv2.rectangle(img_cv, (x, y), (x + w, y + h), bgr, thickness)
+
+        # Corner accents
+        corner_len = max(8, min(w, h) // 5)
+        pts = [(x, y), (x + w, y), (x, y + h), (x + w, y + h)]
+        for cx, cy in pts:
+            dx = corner_len if cx == x else -corner_len
+            dy = corner_len if cy == y else -corner_len
+            cv2.line(img_cv, (cx, cy), (cx + dx, cy), bgr, thickness + 1)
+            cv2.line(img_cv, (cx, cy), (cx, cy + dy), bgr, thickness + 1)
+
+        # Label pill
+        label       = f" {name} "
+        (tw, th), _ = cv2.getTextSize(label, font, font_scale, 1)
+        pad         = 4
+        lx          = x
+        ly          = max(y - th - pad * 2, 0)
+        cv2.rectangle(img_cv, (lx, ly), (lx + tw + pad * 2, ly + th + pad * 2), label_bgr, -1)
+        cv2.putText(img_cv, label, (lx + pad, ly + th + pad - 2),
+                    font, font_scale, (255, 255, 255), 1, cv2.LINE_AA)
+
+        # Score badge (small, bottom-right of box)
+        score_txt     = f"{info['score']:.2f}"
+        (sw, sh), _   = cv2.getTextSize(score_txt, cv2.FONT_HERSHEY_PLAIN, 0.85, 1)
+        cv2.rectangle(img_cv, (x + w - sw - 6, y + h - sh - 4),
+                      (x + w, y + h), bgr, -1)
+        cv2.putText(img_cv, score_txt, (x + w - sw - 3, y + h - 3),
+                    cv2.FONT_HERSHEY_PLAIN, 0.85, (255, 255, 255), 1, cv2.LINE_AA)
+
+    return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
+
+
+def estimate_pads(refs: dict) -> dict:
+    """
+    Estimate positions of Albumin and Creatinine pads by interpolating
+    from reference strip geometry (simple linear model).
+    """
+    if len(refs) < 2:
+        return {}
+
+    sorted_refs = sorted(refs.items(), key=lambda item: item[1]["center"][1])
+    # Use the vertical span of the refs to define a coordinate system
+    top_y    = sorted_refs[0][1]["center"][1]
+    bot_y    = sorted_refs[-1][1]["center"][1]
+    span     = bot_y - top_y if bot_y != top_y else 1
+
+    avg_x    = int(np.mean([v["center"][0] for _, v in refs.items()]))
+    avg_w    = int(np.mean([v["bounds"][2]  for _, v in refs.items()]))
+    avg_h    = int(np.mean([v["bounds"][3]  for _, v in refs.items()]))
+
+    # Place pads above the top reference at equal spacing
+    pad_gap  = max(avg_h + 4, span // max(len(refs), 1))
+    pads     = {}
+    for i, pad_name in enumerate(["Albumin", "Creatinine"]):
+        cy     = top_y - pad_gap * (i + 1)
+        cx     = avg_x
+        pads[pad_name] = {
+            "center": (cx, cy),
+            "bounds": (cx - avg_w // 2, cy - avg_h // 2, avg_w, avg_h),
+        }
     return pads
 
-def measure_colors(image, positions):
-    """Measure RGB at positions"""
+
+def measure_colors(image: Image.Image, regions: dict) -> dict:
+    """Sample mean RGB inside each region's bounding box."""
     img = np.array(image)
-    h, w = img.shape[:2]
     colors = {}
-    
-    for name, (x, y) in positions.items():
-        x, y = int(x), int(y)
-        x1, x2 = max(0, x-10), min(w, x+10)
-        y1, y2 = max(0, y-10), min(h, y+10)
-        rgb = np.mean(img[y1:y2, x1:x2], axis=(0,1))
-        colors[name] = rgb
-    
+    h_img, w_img = img.shape[:2]
+
+    for name, info in regions.items():
+        x, y, w, h = info["bounds"]
+        # Clamp to image bounds
+        x1 = max(0, x);       y1 = max(0, y)
+        x2 = min(w_img, x+w); y2 = min(h_img, y+h)
+        if x2 > x1 and y2 > y1:
+            patch  = img[y1:y2, x1:x2]
+            colors[name] = patch.mean(axis=(0, 1))[:3]
+        else:
+            colors[name] = np.array([128.0, 128.0, 128.0])
+
     return colors
 
-def rgb_to_conc(rgb, biomarker):
-    """RGB to concentration mapping"""
-    intensity = np.mean(rgb)
-    
-    if biomarker == 'albumin':
-        conc = (255 - intensity) * (300/155)  # Maps 255→0, 100→300 mg/dL
-    else:
-        conc = (255 - intensity) * (200/105)  # Maps 255→0, 150→200 mg/dL
-    
-    return max(0, min(conc, 500))
 
-# App UI
-st.title("🧪 uACR Dipstick Analyzer")
-st.markdown("*Demo: Automatic detection with 3-point reference calibration*")
+def rgb_to_conc(rgb: np.ndarray, analyte: str) -> float:
+    """
+    Demo conversion: maps RGB → concentration using a simple heuristic.
+    Replace with your calibrated model.
+    """
+    r, g, b = rgb
+    if analyte == "albumin":
+        # Darker / more blue → higher albumin
+        brightness = (r + g + b) / 3.0
+        return max(0.0, (255 - brightness) / 255 * 500)
+    elif analyte == "creatinine":
+        # Greener → higher creatinine
+        greenness = g - (r + b) / 2.0
+        return max(1.0, 50 + greenness * 2)
+    return 0.0
 
-# Image input
-st.markdown('<div class="info-box">', unsafe_allow_html=True)
-st.subheader("📸 Step 1: Capture or Upload")
 
-method = st.radio("", ["Take Photo", "Upload"], horizontal=True, label_visibility="collapsed")
-image = None
+# ══════════════════════════════════════════════════════════════════════════════
+# UI
+# ══════════════════════════════════════════════════════════════════════════════
 
-if method == "Take Photo":
-    img_file = st.camera_input("Position dipstick with all 3 reference strips visible")
+st.markdown('<p class="page-title">🧪 uACR Analyzer</p>', unsafe_allow_html=True)
+st.markdown('<p class="page-subtitle">Dipstick · 3-Point Reference Calibration</p>', unsafe_allow_html=True)
+
+# ── Step 1: Image input ────────────────────────────────────────────────────
+st.markdown('<div class="card"><div class="card-label">Step 01 — Capture</div>', unsafe_allow_html=True)
+
+method  = st.radio("", ["📷  Camera", "📁  Upload"], horizontal=True, label_visibility="collapsed")
+img_file = None
+
+if "Camera" in method:
+    img_file = st.camera_input("Position dipstick so all 3 reference strips are visible",
+                                label_visibility="visible")
 else:
-    img_file = st.file_uploader("Upload dipstick image", type=['jpg', 'png'])
+    img_file = st.file_uploader("Upload dipstick image (JPG or PNG)",
+                                 type=["jpg", "jpeg", "png"],
+                                 label_visibility="visible")
 
+st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Step 2: Detect & preview ───────────────────────────────────────────────
 if img_file:
-    image = Image.open(img_file)
-    st.image(image, use_container_width=True)
-    
-    if st.button("🔬 Analyze Dipstick", use_container_width=True):
-        with st.spinner("Detecting reference strips and analyzing..."):
-            # Find references
-            refs = find_reference_strips(image)
-            
-            # Estimate pad positions
-            pads = estimate_pads(refs)
-            
-            # Measure colors
-            colors = measure_colors(image, pads)
-            
-            # Calculate concentrations
-            alb_conc = rgb_to_conc(colors['Albumin'], 'albumin')
-            creat_conc = rgb_to_conc(colors['Creatinine'], 'creatinine')
-            uacr = alb_conc / (creat_conc / 100) if creat_conc > 0 else 0
-            
-            # Store results
+    image = Image.open(img_file).convert("RGB")
+
+    st.markdown('<div class="card"><div class="card-label">Step 02 — Detect Strips</div>', unsafe_allow_html=True)
+
+    col_orig, col_ann = st.columns(2)
+
+    with col_orig:
+        st.caption("Original")
+        st.image(image, use_container_width=True)
+
+    # Run detection immediately for the preview
+    refs = find_reference_strips(image)
+    annotated = draw_strip_highlights(image, refs)
+
+    with col_ann:
+        st.caption("Detected strips")
+        st.image(annotated, use_container_width=True)
+
+    # Detection status badges
+    found_set   = set(refs.keys())
+    all_colors  = ["Red", "Green", "Blue"]
+    badge_html  = ""
+    for c in all_colors:
+        if c in found_set:
+            badge_html += f'<span class="detect-badge badge-found">✓ {c}</span>'
+        else:
+            badge_html += f'<span class="detect-badge badge-missing">✗ {c}</span>'
+    st.markdown(badge_html, unsafe_allow_html=True)
+
+    if len(refs) < 3:
+        st.warning(f"Only {len(refs)}/3 reference strips detected. "
+                   "Try better lighting or reposition the dipstick.")
+    else:
+        strip_info = "  |  ".join(
+            f"**{n}** — aspect {v['aspect_ratio']:.2f}, score {v['score']:.2f}"
+            for n, v in refs.items()
+        )
+        st.caption(strip_info)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── Step 3: Analyze ───────────────────────────────────────────────────
+    st.markdown('<div class="card"><div class="card-label">Step 03 — Analyze</div>', unsafe_allow_html=True)
+
+    if st.button("🔬  Run Full Analysis", use_container_width=True, disabled=(len(refs) < 3)):
+        with st.spinner("Measuring pad colors and calculating concentrations…"):
+            pads         = estimate_pads(refs)
+            colors       = measure_colors(image, pads)
+            alb_conc     = rgb_to_conc(colors.get("Albumin",    np.array([128,128,128])), "albumin")
+            creat_conc   = rgb_to_conc(colors.get("Creatinine", np.array([128,128,128])), "creatinine")
+            uacr         = alb_conc / (creat_conc / 100) if creat_conc > 0 else 0
+
             st.session_state.results = {
-                'uacr': uacr,
-                'albumin': alb_conc,
-                'creatinine': creat_conc,
-                'colors': colors
+                "uacr":        uacr,
+                "albumin":     alb_conc,
+                "creatinine":  creat_conc,
+                "colors":      colors,
+                "refs":        refs,
+                "annotated":   annotated,
             }
             st.rerun()
 
-st.markdown('</div>', unsafe_allow_html=True)
+    if len(refs) < 3:
+        st.caption("⚠️ Analysis disabled until all 3 reference strips are detected.")
 
-# Display results
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Results ────────────────────────────────────────────────────────────────
 if st.session_state.results is not None:
-    st.markdown('<div class="result-card">', unsafe_allow_html=True)
-    st.subheader("📊 Analysis Results")
-    
     res = st.session_state.results
-    uacr = res['uacr']
-    
-    # Show measured colors
-    st.markdown("**Detected Colors:**")
-    cols = st.columns(3)
-    for idx, (name, rgb) in enumerate(res['colors'].items()):
-        hex_color = '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
-        with cols[idx]:
-            st.markdown(f"**{name}**")
-            st.markdown(f"RGB: {int(rgb[0])},{int(rgb[1])},{int(rgb[2])}")
-            st.markdown(f"<div style='background:{hex_color}; width:50px; height:50px; border-radius:5px; border:2px solid #0066CC; margin:auto;'></div>", 
-                       unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # Results
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Albumin", f"{res['albumin']:.0f} mg/dL")
-    col2.metric("Creatinine", f"{res['creatinine']:.0f} mg/dL")
-    col3.metric("uACR", f"{uacr:.1f} mg/g")
-    
-    st.divider()
-    
+
+    st.markdown('<div class="card"><div class="card-label">Results</div>', unsafe_allow_html=True)
+
+    # Annotated image (re-show in results section)
+    if "annotated" in res:
+        st.image(res["annotated"], caption="Detected reference strips", use_container_width=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # Metrics row
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Albumin",    f"{res['albumin']:.0f} mg/dL")
+    c2.metric("Creatinine", f"{res['creatinine']:.0f} mg/dL")
+    c3.metric("uACR",       f"{res['uacr']:.1f} mg/g")
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # Color swatches for measured pads
+    if res["colors"]:
+        st.markdown('<div class="card-label" style="margin-bottom:0.4rem;">Measured Pad Colors</div>', unsafe_allow_html=True)
+        swatch_html = '<div class="swatch-row">'
+        for name, rgb in res["colors"].items():
+            hex_c = "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+            swatch_html += f"""
+            <div class="swatch-item">
+                <div class="swatch-box" style="background:{hex_c};"></div>
+                <div class="swatch-name">{name}</div>
+                <div class="swatch-rgb">{int(rgb[0])},{int(rgb[1])},{int(rgb[2])}</div>
+            </div>"""
+        swatch_html += "</div>"
+        st.markdown(swatch_html, unsafe_allow_html=True)
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
     # Interpretation
+    uacr = res["uacr"]
     if uacr < 30:
-        st.success("### ✅ Normal")
-        st.caption("uACR < 30 mg/g - Within normal range")
+        st.markdown("""
+        <div class="status-normal">
+            <div class="status-label">✅ Normal</div>
+            <div class="status-sub">uACR &lt; 30 mg/g — within normal range</div>
+        </div>""", unsafe_allow_html=True)
     elif uacr < 300:
-        st.warning("### ⚠️ Moderately Increased")
-        st.caption("uACR 30-300 mg/g - Microalbuminuria")
+        st.markdown("""
+        <div class="status-moderate">
+            <div class="status-label">⚠️ Moderately Increased</div>
+            <div class="status-sub">uACR 30–300 mg/g — Microalbuminuria detected</div>
+        </div>""", unsafe_allow_html=True)
     else:
-        st.error("### 🔴 Severely Increased")
-        st.caption("uACR > 300 mg/g - Macroalbuminuria")
-    
-    # New analysis button
-    if st.button("🔄 New Analysis", use_container_width=True):
+        st.markdown("""
+        <div class="status-severe">
+            <div class="status-label">🔴 Severely Increased</div>
+            <div class="status-sub">uACR &gt; 300 mg/g — Macroalbuminuria detected</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🔄  New Analysis", use_container_width=True):
         st.session_state.results = None
         st.rerun()
-    
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# Demo instructions footer
-st.markdown("---")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Footer ─────────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="info-box">
-<b>📋 Demo Instructions:</b><br>
-1. Your dipstick must have <b>white, gray, and black</b> reference strips<br>
-2. Position dipstick on flat surface with good lighting<br>
-3. Take photo showing all 3 reference strips clearly<br>
-4. Click analyze to see uACR result
+<div class="card" style="margin-top:1.5rem;">
+<div class="card-label">How to use</div>
+<ul style="font-size:0.85rem; color:#555; margin:0; padding-left:1.2rem; line-height:1.8;">
+  <li>Place dipstick on a <strong>flat, well-lit</strong> surface</li>
+  <li>Ensure all <strong>3 reference strips</strong> (Red, Green, Blue) are in frame</li>
+  <li>Avoid glare — diffuse natural light works best</li>
+  <li>Hold camera <strong>directly above</strong> the strip, not at an angle</li>
+</ul>
 </div>
 """, unsafe_allow_html=True)
 
-st.caption("⚠️ Demo prototype - Not for clinical use. Consult healthcare provider for medical advice.")
+st.caption("⚠️ Research prototype — not for clinical use. Consult a healthcare provider for medical decisions.")
