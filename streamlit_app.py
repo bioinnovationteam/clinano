@@ -56,8 +56,9 @@ st.markdown("""
 if 'results' not in st.session_state:
     st.session_state.results = None
 
+# Back end
 def find_reference_strips(image):
-    """Find white, gray, black reference strips"""
+    """Find RGB reference strips"""
     img = np.array(image)
     refs = {}
     
@@ -111,6 +112,7 @@ def rgb_to_conc(rgb, biomarker):
     
     return max(0, min(conc, 500))
 
+# App UI
 st.title("🧪 uACR Dipstick Analyzer")
 st.markdown("*Demo: Automatic detection with 3-point reference calibration*")
 
