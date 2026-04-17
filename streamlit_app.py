@@ -57,17 +57,236 @@ if 'results' not in st.session_state:
     st.session_state.results = None
 
 # Back end
+
+def load_image_for_processing(image_input):
+    """
+    Universal image loader that handles HEIC, file paths, URLs, and numpy arrays
+    
+    Args:
+        image_input: Can be:
+            - Path to HEIC file (string)
+            - Path to JPG/PNG file (string)
+            - URL (string starting with http)
+            - numpy array (already loaded image)
+            - PIL Image object
+    
+    Returns:
+        RGB numpy array ready for find_reference_strips()
+    """
+    import requests
+    from urllib.parse import urlparse
+    
+    # Case 1: Already a numpy array
+    if isinstance(image_input, np.ndarray):
+        # Assume it's RGB, if BGR convert
+        if image_input.shape[-1] == 3:
+            return image_input
+        else:
+            raise ValueError(f"Unexpected array shape: {image_input.shape}")
+    
+    # Case 2: PIL Image
+    if hasattr(image_input, 'mode') and hasattr(image_input, 'convert'):
+        return np.array(image_input.convert('RGB'))
+    
+    # Case 3: String (path or URL)
+    if isinstance(image_input, str):
+        # Check if URL
+        parsed = urlparse(image_input)
+        if parsed.scheme in ('http', 'https'):
+            # Download from URL
+            response = requests.get(image_input, stream=True)
+            response.raise_for_status()
+            
+            # Check content type
+            content_type = response.headers.get('content-type', '').lower()
+            
+            if 'heic' in content_type or image_input.lower().endswith('.heic'):
+                # Save to temp file and convert
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.heic', delete=False) as tmp:
+                    tmp.write(response.content)
+                    tmp_path = tmp.name
+                
+                try:
+                    result = convert_heic_to_readable(tmp_path)
+                    return result
+                finally:
+                    import os
+                    os.unlink(tmp_path)
+            else:
+                # Regular image from URL
+                from PIL import Image
+                img = Image.open(response.raw)
+                return np.array(img.convert('RGB'))
+        
+        else:
+            # Local file path
+            if image_input.lower().endswith(('.heic', '.heif')):
+                return convert_heic_to_readable(image_input)
+            else:
+                # Regular image format
+                img = cv2.imread(image_input)
+                if img is None:
+                    raise ValueError(f"Could not read image: {image_input}")
+                return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    raise ValueError(f"Unsupported image input type: {type(image_input)}")
+
+
+def batch_process_heic_files(folder_path, output_folder=None):
+    """
+    Batch convert all HEIC files in a folder to JPG for testing
+    
+    Args:
+        folder_path: Folder containing HEIC files
+        output_folder: Where to save JPGs (default: same folder)
+    """
+    import glob
+    import os
+    from pathlib import Path
+    
+    if output_folder is None:
+        output_folder = folder_path
+    
+    os.makedirs(output_folder, exist_ok=True)
+    
+    heic_files = glob.glob(os.path.join(folder_path, "*.heic")) + \
+                 glob.glob(os.path.join(folder_path, "*.HEIC"))
+    
+    results = []
+    
+    for heic_path in heic_files:
+        try:
+            # Convert to numpy array
+            img_rgb = convert_heic_to_readable(heic_path)
+            
+            # Save as JPG for easy viewing
+            stem = Path(heic_path).stem
+            jpg_path = os.path.join(output_folder, f"{stem}.jpg")
+            
+            # Convert RGB to BGR for cv2
+            img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(jpg_path, img_bgr)
+            
+            results.append({'file': heic_path, 'status': 'success', 'output': jpg_path})
+            print(f"✓ Converted: {Path(heic_path).name} -> {Path(jpg_path).name}")
+            
+        except Exception as e:
+            results.append({'file': heic_path, 'status': 'failed', 'error': str(e)})
+            print(f"✗ Failed: {Path(heic_path).name} - {e}")
+    
+    # Summary
+    success_count = sum(1 for r in results if r['status'] == 'success')
+    print(f"\nConverted {success_count}/{len(heic_files)} files")
+    
+    return results
+
 def find_reference_strips(image):
-    """Find RGB reference strips"""
+    """Find RGB reference strips with adaptive thresholds and robust detection"""
     img = np.array(image)
+    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    
+    # Adaptive thresholds based on image statistics
+    img_area = img.shape[0] * img.shape[1]
+    min_strip_area = img_area * 0.001  # 0.1% of image area
+    max_strip_area = img_area * 0.2    # 20% of image area
+    
+    # More permissive ranges (can be made adaptive)
+    color_ranges = {
+        'Red': [
+            ([0, 30, 30], [10, 255, 255]),      # Lower saturation threshold
+            ([160, 30, 30], [180, 255, 255])    # Extended range
+        ],
+        'Green': [([35, 30, 30], [85, 255, 255])],
+        'Blue': [([100, 30, 30], [130, 255, 255])]
+    }
+    
     refs = {}
     
-    targets = {'white': (255,255,255), 'gray': (128,128,128), 'black': (32,32,32)}
+    for name, ranges in color_ranges.items():
+        combined_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        
+        for lower, upper in ranges:
+            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+            combined_mask = cv2.bitwise_or(combined_mask, mask)
+        
+        # Dynamic kernel size based on image dimensions
+        kernel_size = max(3, min(img.shape[0], img.shape[1]) // 200)
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        
+        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        # Filter and collect all valid contours
+        valid_contours = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < min_strip_area or area > max_strip_area:
+                continue
+                
+            x, y, w, h = cv2.boundingRect(contour)
+            
+            # More permissive aspect ratio
+            aspect_ratio = w / h if h > 0 else 0
+            if 0.3 < aspect_ratio < 3.0:  # Much wider range
+                # Check if contour is roughly rectangular
+                peri = cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+                if len(approx) >= 4:  # At least quadrilateral
+                    valid_contours.append((area, x, y, w, h, contour))
+        
+        if valid_contours:
+            # Sort by area and take best candidate
+            valid_contours.sort(key=lambda c: c[0], reverse=True)
+            
+            # Try top 3 contours, pick one with best aspect ratio
+            best = None
+            best_score = -1
+            for area, x, y, w, h, contour in valid_contours[:3]:
+                # Score based on area and aspect ratio
+                aspect_score = 1.0 - min(abs(1.0 - w/h), 1.0)
+                area_score = area / max_strip_area
+                score = aspect_score * 0.6 + area_score * 0.4
+                
+                if score > best_score:
+                    best_score = score
+                    best = (area, x, y, w, h, contour)
+            
+            if best:
+                area, x, y, w, h, contour = best
+                refs[name] = {
+                    'center': (x + w//2, y + h//2),
+                    'bounds': (x, y, w, h),
+                    'area': area,
+                    'aspect_ratio': w/h,
+                    'score': best_score
+                }
     
-    for name, target in targets.items():
-        distances = np.sqrt(sum((img - target[i])**2 for i in range(3)))
-        min_idx = np.unravel_index(np.argmin(distances), distances.shape)
-        refs[name] = (min_idx[1], min_idx[0])
+    # More robust validation
+    if len(refs) < 3:
+        missing = set(['Blue', 'Red', 'Green']) - set(refs.keys())
+        print(f"Error: Missing strips for colors: {missing}")
+        return refs  # Return what we found, let caller handle
+    
+    # Validate ordering with tolerance
+    ordered = sorted(refs.items(), key=lambda item: item[1]['center'][1])
+    detected_order = [name for name, _ in ordered]
+    
+    expected_order = ['Blue', 'Red', 'Green']
+    if detected_order != expected_order:
+        print(f"Warning: Order mismatch. Found: {detected_order}, Expected: {expected_order}")
+        # Could attempt to re-map based on expected order
+    
+    # Use relative tolerance for alignment
+    x_centers = [refs[name]['center'][0] for name in refs]
+    x_range = max(x_centers) - min(x_centers)
+    img_width = img.shape[1]
+    relative_x_range = x_range / img_width
+    
+    if relative_x_range > 0.1:  # Centers vary more than 10% of image width
+        print(f"Warning: Strips not well-aligned (X range: {relative_x_range:.1%} of width)")
     
     return refs
 
