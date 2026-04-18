@@ -165,68 +165,125 @@ if "results" not in st.session_state:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def find_reference_strips(image):
-    """Find RGB reference strips with adaptive thresholds and robust detection."""
+    """
+    Find RGB reference strips using HSV color masking and contour analysis.
+    
+    Args:
+        image: PIL Image or numpy array (RGB format)
+    
+    Returns:
+        dict with keys 'Red', 'Green', 'Blue' containing detection info
+    """
+    # ── 1. Normalize input ───────────────────────────────────────────────────
     img = np.array(image)
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+    
+    # Handle both RGB (PIL) and BGR (cv2.imread) inputs.
+    # Convert RGB → BGR → HSV, which is the correct OpenCV pipeline.
+    # If your image is already BGR, replace cvtColor line with just:
+    #   hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    if img.shape[2] == 3:
+        bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    else:
+        bgr = img  # assume BGR already
+
+    hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
 
     img_area = img.shape[0] * img.shape[1]
-    min_strip_area = img_area * 0.001
-    max_strip_area = img_area * 0.2
 
+    # ── 2. Relaxed area bounds ────────────────────────────────────────────────
+    # Lowered min to 0.0005 (half a percent), raised max to 0.5 (half the image)
+    # Reference strips can be large color blocks
+    min_strip_area = img_area * 0.0005
+    max_strip_area = img_area * 0.5
+
+    # ── 3. Widened HSV ranges ─────────────────────────────────────────────────
+    # Saturation/value floors lowered from 30 → 50 for hue but 40 minimum
+    # for value to reject near-black without losing dark-ish saturated colors.
     color_ranges = {
-        "Red":   [([0, 30, 30], [10, 255, 255]), ([160, 30, 30], [180, 255, 255])],
-        "Green": [([35, 30, 30], [85, 255, 255])],
-        "Blue":  [([100, 30, 30], [130, 255, 255])],
+        "Red": [
+            ([0,   80, 50], [10,  255, 255]),   # lower red hue
+            ([165, 80, 50], [180, 255, 255]),   # upper red hue (wraps around 180)
+        ],
+        "Green": [
+            ([40, 60, 50], [90, 255, 255]),     # pure green range
+        ],
+        "Blue": [
+            ([95, 60, 50], [135, 255, 255]),    # pure blue range
+        ],
     }
 
     refs = {}
 
     for name, ranges in color_ranges.items():
+
+        # ── 4. Build combined mask ────────────────────────────────────────────
         combined_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
         for lower, upper in ranges:
             mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
             combined_mask = cv2.bitwise_or(combined_mask, mask)
 
-        kernel_size = max(3, min(img.shape[0], img.shape[1]) // 200)
+        # ── 5. Morphological cleanup ──────────────────────────────────────────
+        # Use a modest kernel; too large and you'll bridge adjacent color regions
+        kernel_size = max(3, min(img.shape[0], img.shape[1]) // 150)
         kernel = np.ones((kernel_size, kernel_size), np.uint8)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN,  kernel)
 
-        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
 
+        # ── 6. Filter contours ────────────────────────────────────────────────
         valid_contours = []
         for contour in contours:
             area = cv2.contourArea(contour)
             if area < min_strip_area or area > max_strip_area:
                 continue
+
             x, y, w, h = cv2.boundingRect(contour)
             aspect_ratio = w / h if h > 0 else 0
-            if 0.3 < aspect_ratio < 3.0:
-                peri = cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
-                if len(approx) >= 4:
-                    valid_contours.append((area, x, y, w, h, contour))
 
-        if valid_contours:
-            valid_contours.sort(key=lambda c: c[0], reverse=True)
-            best, best_score = None, -1
-            for area, x, y, w, h, contour in valid_contours[:3]:
-                aspect_score = 1.0 - min(abs(1.0 - w / h), 1.0)
-                area_score   = area / max_strip_area
-                score        = aspect_score * 0.6 + area_score * 0.4
-                if score > best_score:
-                    best_score = score
-                    best = (area, x, y, w, h, contour)
+            # FIX: horizontal strips are wide, so aspect_ratio > 1.
+            # Old ceiling of 3.0 rejected 400×60px strips (ratio = 6.7).
+            # New range: 0.2 (tall thin) to 20.0 (very wide strip)
+            if not (0.2 < aspect_ratio < 20.0):
+                continue
 
-            if best:
-                area, x, y, w, h, contour = best
-                refs[name] = {
-                    "center":       (x + w // 2, y + h // 2),
-                    "bounds":       (x, y, w, h),
-                    "area":         area,
-                    "aspect_ratio": w / h,
-                    "score":        best_score,
-                }
+            # Require roughly rectangular shape
+            peri  = cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+            if len(approx) >= 4:
+                valid_contours.append((area, x, y, w, h, contour))
+
+        if not valid_contours:
+            continue
+
+        # ── 7. Score and pick best candidate ─────────────────────────────────
+        # Sort by area descending; consider top 5 not just top 3
+        valid_contours.sort(key=lambda c: c[0], reverse=True)
+
+        best, best_score = None, -1
+        for area, x, y, w, h, contour in valid_contours[:5]:
+            # Reward aspect ratios near a wide horizontal strip (w > h)
+            ar = w / h if h > 0 else 1.0
+            # Score peaks at ar=2 (2:1 wide strip), tolerant either side
+            aspect_score = max(0.0, 1.0 - abs(ar - 2.0) / 5.0)
+            area_score   = min(area / max_strip_area, 1.0)
+            score        = aspect_score * 0.6 + area_score * 0.4
+
+            if score > best_score:        # FIX: only update best_score here
+                best_score = score
+                best = (area, x, y, w, h, contour)
+
+        if best:
+            area, x, y, w, h, contour = best
+            refs[name] = {
+                "center":       (x + w // 2, y + h // 2),
+                "bounds":       (x, y, w, h),
+                "area":         area,
+                "aspect_ratio": round(w / h, 3),
+                "score":        round(best_score, 3),
+            }
 
     return refs
 
