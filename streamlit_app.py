@@ -363,7 +363,7 @@ def rgb_to_conc(rgb: np.ndarray, analyte: str) -> float:
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
 
-st.markdown('<p class="page-title">🧪 uACR Analyzer</p>', unsafe_allow_html=True)
+st.markdown('<p class="page-title">uACR Analyzer</p>', unsafe_allow_html=True)
 st.markdown('<p class="page-subtitle">Dipstick · 3-Point Reference Calibration</p>', unsafe_allow_html=True)
 
 # ── Step 1: Image input ────────────────────────────────────────────────────
@@ -373,7 +373,7 @@ method  = st.radio("", ["📷  Camera", "📁  Upload"], horizontal=True, label_
 img_file = None
 
 if "Camera" in method:
-    img_file = st.camera_input("Position dipstick so all 3 reference strips are visible",
+    img_file = st.camera_input("Position dipstick so all 3 reference strips and detection pads are visible",
                                 label_visibility="visible")
 else:
     img_file = st.file_uploader("Upload dipstick image (JPG or PNG)",
@@ -392,7 +392,7 @@ if img_file:
 
     with col_orig:
         st.caption("Original")
-        st.image(image, use_container_width=True)
+        st.image(image)
 
     # Run detection immediately for the preview
     refs = find_reference_strips(image)
@@ -400,7 +400,7 @@ if img_file:
 
     with col_ann:
         st.caption("Detected strips")
-        st.image(annotated, use_container_width=True)
+        st.image(annotated)
 
     # Detection status badges
     found_set   = set(refs.keys())
