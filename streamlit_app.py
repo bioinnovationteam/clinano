@@ -329,7 +329,7 @@ else:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ── Step 2: Detect & preview ───────────────────────────────────────────────
+    # ── Step 2: Detect & preview ───────────────────────────────────────────────
 if img_file:
     image = Image.open(img_file).convert("RGB")
 
@@ -346,53 +346,50 @@ if img_file:
     annotated = visualize_detection_streamlit(image, detection_results)
 
     with col_ann:
-        st.caption("Detected regions (References: Green, Pads: Blue)")
+        st.caption("Detected regions")
         st.image(annotated)
 
-    # Detection status badges for all 6 regions
-    expected_regions = ["Blue Reference", "Red Reference", "Green Reference", "Pad 1", "Pad 2", "Pad 3"]
+    # Map generic Region N names to friendly display names
+    region_display_names = {
+        "Region 1": "Blue Ref",
+        "Region 2": "Red Ref",
+        "Region 3": "Green Ref",
+        "Region 4": "Albumin Pad",
+        "Region 5": "Creatinine Pad",
+        "Region 6": "pH Pad",
+    }
+
     found_names = [r['name'] for r in detection_results['regions']]
-    
+
+    # Detection status badges
     badge_html = '<div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0;">'
-    for region in expected_regions:
-        if region in found_names:
-            badge_html += f'<span class="detect-badge badge-found">✓ {region}</span>'
+    for region_key, display_name in region_display_names.items():
+        if region_key in found_names:
+            badge_html += f'<span class="detect-badge badge-found">✓ {display_name}</span>'
         else:
-            badge_html += f'<span class="detect-badge badge-missing">✗ {region}</span>'
+            badge_html += f'<span class="detect-badge badge-missing">✗ {display_name}</span>'
     badge_html += '</div>'
     st.markdown(badge_html, unsafe_allow_html=True)
 
     if not detection_results['success']:
         st.warning(f"Only {len(detection_results['regions'])}/6 regions detected. "
                    "Try better lighting, reposition the dipstick, or ensure all regions have clear black outlines.")
-        
-        # Show which regions are missing
-        missing = set(expected_regions) - set(found_names)
+
+        missing = [display_name for region_key, display_name in region_display_names.items()
+                   if region_key not in found_names]
         if missing:
             st.info(f"Missing: {', '.join(missing)}")
     else:
-        # Display detailed info for detected regions
-        st.caption("### Detected Regions (top to bottom)")
-        
-        for region in detection_results['regions']:
-            region_type = "Reference" if region['type'] == 'reference' else "Test Pad"
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                st.write(f"**{region['name']}** *({region_type})*")
-            with col2:
-                st.write(f"Aspect: {region['aspect_ratio']:.2f}")
-            with col3:
-                st.write(f"Area: {region['area']:.0f} px")
-        
-        # Option to show raw detection data in expander
-        with st.expander("🔍 Show detection details"):
-            st.json({
-                'success': detection_results['success'],
-                'num_regions': len(detection_results['regions']),
-                'references': [r['name'] for r in detection_results['reference_strips']],
-                'test_pads': [r['name'] for r in detection_results['test_pads']],
-                'order_verified': detection_results['order_verified']
-            })
+        with st.expander("### Detected Regions (top to bottom)"):
+            for region in detection_results['regions']:
+                display_name = region_display_names.get(region['name'], region['name'])
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"**{display_name}**")
+                with col2:
+                    st.write(f"Aspect: {region['aspect_ratio']:.2f}")
+                with col3:
+                    st.write(f"Area: {region['area']:.0f} px")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -401,53 +398,38 @@ if img_file:
 
     if st.button("🔬  Run Full Analysis", use_container_width=True, disabled=(not detection_results['success'])):
         with st.spinner("Measuring pad colors and calculating concentrations…"):
-            # Extract test pads (should be Pad 1, Pad 2, Pad 3)
-            test_pads = detection_results['test_pads']
-            
-            # Map pads to expected analytes (adjust based on your dipstick layout)
-            # Assuming Pad 1 = Albumin, Pad 2 = Creatinine, Pad 3 = pH/others
-            pad_colors = {}
-            for pad in test_pads:
-                pad_name = pad['name']
-                pad_colors[pad_name] = pad['color_rgb']
-            
-            # For backward compatibility with existing functions
-            # Map to expected keys if needed
-            colors = {
-                "Albumin": pad_colors.get("Pad 1", np.array([128,128,128])),
-                "Creatinine": pad_colors.get("Pad 2", np.array([128,128,128])),
-                "Pad 3": pad_colors.get("Pad 3", np.array([128,128,128]))
-            }
-            
-            # Get reference strips for calibration
+            regions = detection_results['regions']
+
+            # Split into refs and pads by position (first 3 = refs, last 3 = pads)
+            ref_regions  = regions[:3]
+            pad_regions  = regions[3:]
+
+            # Reference strips keyed by friendly name
             refs = {}
-            for ref in detection_results['reference_strips']:
-                ref_name = ref['name'].replace(' Reference', '')
-                refs[ref_name] = {
-                    'center': ref['center'],
-                    'bounds': ref['bounds'],
-                    'area': ref['area'],
-                    'aspect_ratio': ref['aspect_ratio'],
-                    'score': 1.0  # Already scored in detection
+            for region, name in zip(ref_regions, ["Blue", "Red", "Green"]):
+                refs[name] = {
+                    'center':       region['center'],
+                    'bounds':       region['bounds'],
+                    'area':         region['area'],
+                    'aspect_ratio': region['aspect_ratio'],
+                    'color_rgb':    region['color_rgb'],
+                    'score':        1.0,
                 }
-            
-            
-            # Store additional pad info
-            pad_3_color = colors.get("Pad 3")
-            pad_3_category = None
-            if pad_3_color is not None:
-                # You might want to classify pad 3 (e.g., pH, glucose, etc.)
-                pad_3_category = "Analyzed"
-            
+
+            # Pad colors keyed by analyte name
+            pad_names = ["Albumin", "Creatinine", "pH"]
+            colors = {}
+            for region, name in zip(pad_regions, pad_names):
+                colors[name] = region['color_rgb']
+
             st.session_state.results = {
-                "uacr": uacr,
-                "albumin": alb_conc,
-                "creatinine": creat_conc,
-                "colors": colors,
-                "refs": refs,
+                "uacr":              uacr,
+                "albumin":           alb_conc,
+                "creatinine":        creat_conc,
+                "colors":            colors,
+                "refs":              refs,
                 "detection_results": detection_results,
-                "annotated": annotated,
-                "pad_3_category": pad_3_category,
+                "annotated":         annotated,
             }
             st.rerun()
 
