@@ -165,12 +165,9 @@ if "results" not in st.session_state:
 # ══════════════════════════════════════════════════════════════════════════════
 # BACKEND FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-
 def detect_dipstick_regions(image) -> Dict:
     """
-    Detect all 6 outlined regions on a urine dipstick in top-to-bottom order.
-    
-    Order: Blue Reference, Red Reference, Green Reference, Pad 1, Pad 2, Pad 3
+    Detect all regions with a black outline on a urine dipstick in top-to-bottom order.
     
     Args:
         image: PIL Image or numpy array (RGB format)
@@ -182,302 +179,126 @@ def detect_dipstick_regions(image) -> Dict:
         - 'reference_strips': Subset for just reference strips
         - 'test_pads': Subset for just test pads
     """
-    
     # ── 1. Normalize input ───────────────────────────────────────────────────
     img = np.array(image)
-    
-    # Convert RGB → BGR for OpenCV
-    if img.shape[2] == 3:
-        bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    else:
-        bgr = img
-    
+    bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.shape[2] == 3 else img
     hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     img_area = img.shape[0] * img.shape[1]
-    
-    # ── 2. Area bounds for different region types ────────────────────────────
-    min_strip_area = img_area * 0.0005      # 0.05% of image
-    max_strip_area = img_area * 0.5         # 50% of image
-    min_pad_area = img_area * 0.0003        # 0.03% of image (pads can be smaller)
-    max_pad_area = img_area * 0.3           # 30% of image
-    
-    # ── 3. HSV color ranges for reference strips ─────────────────────────────
-    color_ranges = {
-        "Blue Reference": [
-            ([95, 60, 50], [135, 255, 255]),   # pure blue range
-        ],
-        "Red Reference": [
-            ([0,   80, 50], [10,  255, 255]),   # lower red hue
-            ([165, 80, 50], [180, 255, 255]),   # upper red hue
-        ],
-        "Green Reference": [
-            ([40, 60, 50], [90, 255, 255]),     # pure green range
-        ],
-    }
-    
-    # ── 4. Find all potential regions (both reference strips and pads) ───────
-    all_regions = []
-    
-    # First, find reference strips by their specific colors
-    for name, ranges in color_ranges.items():
-        combined_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        for lower, upper in ranges:
-            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
-            combined_mask = cv2.bitwise_or(combined_mask, mask)
-        
-        # Morphological cleanup
-        kernel_size = max(3, min(img.shape[0], img.shape[1]) // 150)
-        kernel = np.ones((kernel_size, kernel_size), np.uint8)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
-        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
-        
-        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # Find best match for this reference color
-        best_region = None
-        best_score = -1
-        
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < min_strip_area or area > max_strip_area:
-                continue
-            
-            x, y, w, h = cv2.boundingRect(contour)
-            aspect_ratio = w / h if h > 0 else 0
-            
-            # Reference strips should be rectangular (width >= 2x height OR height >= 2x width)
-            is_horizontal_rect = aspect_ratio >= 2.0
-            is_vertical_rect = (1.0 / aspect_ratio) >= 2.0 if aspect_ratio > 0 else False
-            
-            if not (is_horizontal_rect or is_vertical_rect):
-                continue
-            
-            # Check if roughly rectangular
-            peri = cv2.arcLength(contour, True)
-            approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
-            if len(approx) < 4:
-                continue
-            
-            # Score based on aspect ratio (prefer horizontal for dipsticks)
-            target_ar = 2.5  # Ideal aspect ratio for reference strips
-            if is_vertical_rect:
-                aspect_score = max(0.0, 1.0 - abs((1.0/aspect_ratio) - target_ar) / target_ar)
-            else:
-                aspect_score = max(0.0, 1.0 - abs(aspect_ratio - target_ar) / target_ar)
-            
-            area_score = min(area / max_strip_area, 1.0)
-            score = aspect_score * 0.6 + area_score * 0.4
-            
-            if score > best_score:
-                best_score = score
-                best_region = {
-                    'name': name,
-                    'type': 'reference',
-                    'bounds': (x, y, w, h),
-                    'center': (x + w//2, y + h//2),
-                    'area': area,
-                    'aspect_ratio': round(aspect_ratio, 3),
-                    'score': round(best_score, 3),
-                    'is_horizontal': is_horizontal_rect
-                }
-        
-        if best_region:
-            all_regions.append(best_region)
-    
-    # ── 5. Find test pads (square regions with black outlines) ───────────────
-    # Create a mask for all dark/black outlines
-    # Black outlines have low value (brightness) but can have any hue/saturation
-    lower_black = np.array([0, 0, 0])
-    upper_black = np.array([180, 255, 50])  # Value <= 50 for dark areas
-    
-    outline_mask = cv2.inRange(hsv, lower_black, upper_black)
-    
-    # Dilate to connect nearby outline pixels
-    kernel = np.ones((5, 5), np.uint8)
-    outline_mask = cv2.dilate(outline_mask, kernel, iterations=2)
-    outline_mask = cv2.erode(outline_mask, kernel, iterations=1)
-    
-    # Find contours of the black outlines
-    contours, _ = cv2.findContours(outline_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Filter for square/rectangular regions that could be test pads
-    potential_pads = []
-    
-    for contour in contours:
+
+        # ── 2. Detect black outlines ─────────────────────────────────────────────
+    outline_mask = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 80]))
+    kernel = np.ones((3, 3), np.uint8)
+    outline_mask = cv2.erode(cv2.dilate(outline_mask, kernel, iterations=3), kernel, iterations=1)
+
+    all_contours, hierarchy = cv2.findContours(outline_mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+    # ── 3. Filter contours to valid outlined regions ─────────────────────────
+    potential_regions = []
+    for i, contour in enumerate(all_contours):
+        # Only keep child contours (those with a parent) — skips the outer holder
+        if hierarchy[0][i][3] == -1:  # -1 means no parent = outermost = holder outline
+            continue
+
         area = cv2.contourArea(contour)
-        if area < min_pad_area or area > max_pad_area:
+        if not (img_area * 0.0001 < area < img_area * 0.5):
             continue
-        
+
         x, y, w, h = cv2.boundingRect(contour)
-        aspect_ratio = w / h if h > 0 else 0
-        
-        # Test pads should be roughly square (aspect ratio between 0.8 and 1.2)
-        is_square = 0.8 <= aspect_ratio <= 1.2
-        
-        if not is_square:
-            continue
-        
-        # Check if contour is roughly rectangular
         peri = cv2.arcLength(contour, True)
-        approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
-        if len(approx) < 4:
+        if len(cv2.approxPolyDP(contour, 0.06 * peri, True)) < 3:
             continue
-        
-        # Verify there's actually color inside (not just an empty outline)
-        # Create mask for the interior
+
         interior_mask = np.zeros(hsv.shape[:2], dtype=np.uint8)
-        cv2.drawContours(interior_mask, [contour], -1, 255, -1)  # Fill the contour
-        
-        # Check average saturation/value inside to ensure it's not just black
-        interior_pixels = hsv[interior_mask == 255]
-        if len(interior_pixels) > 0:
-            avg_saturation = np.mean(interior_pixels[:, 1])
-            avg_value = np.mean(interior_pixels[:, 2])
-            
-            # Should have some color (saturation > 30) and not be too dark
-            if avg_saturation < 30 or avg_value < 40:
-                continue  # Empty or too dark - likely not a test pad
-        
-        potential_pads.append({
-            'type': 'test_pad',
-            'bounds': (x, y, w, h),
-            'center': (x + w//2, y + h//2),
-            'area': area,
-            'aspect_ratio': round(aspect_ratio, 3),
-            'contour': contour
+        cv2.rectangle(interior_mask, (x, y), (x + w, y + h), 255, -1)
+        interior_pixels = bgr[interior_mask == 255]
+        if len(interior_pixels) == 0:
+            continue
+
+        avg_bgr = np.mean(interior_pixels, axis=0)
+        avg_hsv = cv2.cvtColor(np.uint8([[avg_bgr]]), cv2.COLOR_BGR2HSV)[0][0]
+
+        # Discard empty/black-filled regions — only keep colored interiors
+        if avg_hsv[1] > 15 and avg_hsv[2] > 30:
+            potential_regions.append({
+                'bounds': (x, y, w, h),
+                'center': (x + w // 2, y + h // 2),
+                'area': area,
+                'aspect_ratio': round(w / h, 3) if h > 0 else 0,
+                'avg_color_bgr': avg_bgr,
+                'avg_color_hsv': avg_hsv,
+            })
+
+    # ── 4. Sort top-to-bottom and assign generic names ───────────────────────
+    potential_regions.sort(key=lambda r: r['center'][1])
+
+    all_regions = []
+    for i, region in enumerate(potential_regions):
+        r, g, b = region['avg_color_bgr'][2], region['avg_color_bgr'][1], region['avg_color_bgr'][0]
+        h_hsv = region['avg_color_hsv']
+        all_regions.append({
+            'name':         f"Region {i + 1}",
+            'type':         'unknown',
+            'bounds':       region['bounds'],
+            'center':       region['center'],
+            'area':         region['area'],
+            'aspect_ratio': region['aspect_ratio'],
+            'color_rgb':    (float(r), float(g), float(b)),
+            'color_hsv':    (float(h_hsv[0]), float(h_hsv[1]), float(h_hsv[2])),
         })
-    
-    # Remove overlapping pads (keep the ones with best square aspect ratio)
-    potential_pads.sort(key=lambda p: abs(p['aspect_ratio'] - 1.0))  # Prefer perfect squares
-    
-    unique_pads = []
-    for pad in potential_pads:
-        overlap = False
-        px, py, pw, ph = pad['bounds']
-        
-        for existing in unique_pads:
-            ex, ey, ew, eh = existing['bounds']
-            # Check IoU (Intersection over Union)
-            ix1, iy1 = max(px, ex), max(py, ey)
-            ix2, iy2 = min(px + pw, ex + ew), min(py + ph, ey + eh)
-            
-            if ix2 > ix1 and iy2 > iy1:
-                intersection = (ix2 - ix1) * (iy2 - iy1)
-                union = (pw * ph) + (ew * eh) - intersection
-                iou = intersection / union if union > 0 else 0
-                
-                if iou > 0.3:  # Significant overlap
-                    overlap = True
-                    break
-        
-        if not overlap and len(unique_pads) < 3:  # We only need 3 pads
-            unique_pads.append(pad)
-    
-    # Sort pads by vertical position (top to bottom)
-    unique_pads.sort(key=lambda p: p['center'][1])
-    
-    # Assign names to pads
-    for i, pad in enumerate(unique_pads[:3]):
-        pad['name'] = f"Pad {i+1}"
-        all_regions.append(pad)
-    
-    # ── 6. Sort all regions top-to-bottom by center y-coordinate ─────────────
-    all_regions.sort(key=lambda r: r['center'][1])
-    
-    # Verify we have all 6 regions
-    expected_names = ["Blue Reference", "Red Reference", "Green Reference", "Pad 1", "Pad 2", "Pad 3"]
+
+    # ── 5. Return using same output structure ────────────────────────────────
     found_names = [r['name'] for r in all_regions]
-    
-    success = len(all_regions) == 6
-    
+    success = len(all_regions) > 0
+
     if not success:
-        print(f"Warning: Found {len(all_regions)}/6 regions. Found: {found_names}")
-        print(f"Expected: {expected_names}")
-    
-    # ── 7. Extract color information for each region ─────────────────────────
-    for region in all_regions:
-        x, y, w, h = region['bounds']
-        region_img = bgr[y:y+h, x:x+w]
-        
-        if region_img.size > 0:
-            # Analyze the color inside the region
-            hsv_region = cv2.cvtColor(region_img, cv2.COLOR_BGR2HSV)
-            
-            # Use median for robustness
-            h_vals = hsv_region[:,:,0].flatten()
-            s_vals = hsv_region[:,:,1].flatten()
-            v_vals = hsv_region[:,:,2].flatten()
-            
-            region['color_hsv'] = (
-                float(np.median(h_vals)),
-                float(np.median(s_vals)),
-                float(np.median(v_vals))
-            )
-            
-            # Calculate average RGB
-            rgb_region = cv2.cvtColor(region_img, cv2.COLOR_BGR2RGB)
-            region['color_rgb'] = (
-                float(np.median(rgb_region[:,:,0])),
-                float(np.median(rgb_region[:,:,1])),
-                float(np.median(rgb_region[:,:,2]))
-            )
-    
-    # ── 8. Organize return data ──────────────────────────────────────────────
+        print("Warning: No outlined regions detected.")
+    else:
+        print(f"Found {len(all_regions)} outlined regions: {found_names}")
+
     return {
-        'success': success,
-        'regions': all_regions,
-        'reference_strips': [r for r in all_regions if r['type'] == 'reference'],
-        'test_pads': [r for r in all_regions if r['type'] == 'test_pad'],
-        'order_verified': found_names == expected_names
+        'success':          success,
+        'regions':          all_regions,
+        'reference_strips': [],   # populated by caller once regions are confirmed
+        'test_pads':        [],   # populated by caller once regions are confirmed
+        'order_verified':   False
     }
+
+
+
 
 def visualize_detection_streamlit(image, detection_results: Dict):
     """
     Create visualization for Streamlit display (returns image array).
     """
     img = np.array(image)
-    if img.shape[2] == 3:
-        display_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    else:
-        display_img = img.copy()
-    
-    # Color coding
-    colors = {
-        'reference': (0, 255, 0),    # Green
-        'test_pad': (255, 0, 0)      # Blue
-    }
-    
-    for region in detection_results['regions']:
+    display_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.shape[2] == 3 else img.copy()
+
+    # Distinct colors for up to N regions (BGR)
+    palette = [
+        (0, 255, 0),    (255, 0, 0),   (0, 0, 255),
+        (0, 255, 255),  (255, 0, 255), (255, 165, 0),
+        (128, 0, 128),  (0, 128, 255), (0, 255, 128),
+    ]
+
+    for i, region in enumerate(detection_results['regions']):
         x, y, w, h = region['bounds']
-        color = colors[region['type']]
-        
-        # Draw bounding box
-        cv2.rectangle(display_img, (x, y), (x+w, y+h), color, 3)
-        
-        # Add label
+        color = palette[i % len(palette)]
+
+        cv2.rectangle(display_img, (x, y), (x + w, y + h), color, 3)
+
         label = region['name']
-        
-        # Put text above bounding box
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.6
-        thickness = 2
+        font, font_scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
         text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
-        
-        # Background for text
-        cv2.rectangle(display_img, 
-                     (x, y - text_size[1] - 8), 
-                     (x + text_size[0] + 8, y - 3), 
-                     color, -1)
-        
-        # Text
-        cv2.putText(display_img, label, (x + 4, y - 5), 
-                   font, font_scale, (0, 0, 0), thickness)
-    
+
+        cv2.rectangle(display_img,
+                      (x, y - text_size[1] - 8),
+                      (x + text_size[0] + 8, y - 3),
+                      color, -1)
+        cv2.putText(display_img, label, (x + 4, y - 5),
+                    font, font_scale, (0, 0, 0), thickness)
+
     return cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB)
 
-# ══════════════════════════════════════════════════════════════════════════════
-# UI
-# ══════════════════════════════════════════════════════════════════════════════
 # ══════════════════════════════════════════════════════════════════════════════
 # UI
 # ══════════════════════════════════════════════════════════════════════════════
