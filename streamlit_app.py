@@ -264,8 +264,6 @@ def detect_dipstick_regions(image) -> Dict:
     }
 
 
-
-
 def visualize_detection_streamlit(image, detection_results: Dict):
     """
     Create visualization for Streamlit display (returns image array).
@@ -273,20 +271,28 @@ def visualize_detection_streamlit(image, detection_results: Dict):
     img = np.array(image)
     display_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR) if img.shape[2] == 3 else img.copy()
 
-    # Distinct colors for up to N regions (BGR)
+    region_names = {
+        "Region 1": "Blue Ref",
+        "Region 2": "Red Ref",
+        "Region 3": "Green Ref",
+        "Region 4": "Albumin Pad",
+        "Region 5": "Creatinine Pad",
+        "Region 6": "pH Pad",
+    }
+
     palette = [
         (0, 255, 0),    (255, 0, 0),   (0, 0, 255),
         (0, 255, 255),  (255, 0, 255), (255, 165, 0),
         (128, 0, 128),  (0, 128, 255), (0, 255, 128),
     ]
 
-    for i, region in enumerate(detection_results['regions']):
+    for i, region in enumerate(detection_results['regions'][:6]):
         x, y, w, h = region['bounds']
         color = palette[i % len(palette)]
 
         cv2.rectangle(display_img, (x, y), (x + w, y + h), color, 3)
 
-        label = region['name']
+        label = region_names.get(region['name'], region['name'])
         font, font_scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2
         text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
 
@@ -298,6 +304,7 @@ def visualize_detection_streamlit(image, detection_results: Dict):
                     font, font_scale, (0, 0, 0), thickness)
 
     return cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UI
