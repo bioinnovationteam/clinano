@@ -264,6 +264,7 @@ def detect_dipstick_regions(image) -> Dict:
     }
 
 
+
 def visualize_detection_streamlit(image, detection_results: Dict):
     """
     Create visualization for Streamlit display (returns image array).
@@ -305,6 +306,117 @@ def visualize_detection_streamlit(image, detection_results: Dict):
 
     return cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB)
 
+
+
+def process_regions_average_explicit(regions, black_threshold=30, color_order='RGB'):
+    """
+    Takes 6 detected regions, removes strong black pixels, and outputs average RGB values.
+    
+    Parameters:
+    - regions: List of 6 image regions (numpy arrays)
+    - black_threshold: Pixels with all RGB values <= this threshold are "strong black"
+    - color_order: 'RGB' or 'BGR' - specifies input color order
+    
+    Returns:
+    - List of 6 tuples (R_avg, G_avg, B_avg)
+    """
+    avg_rgb_values = []
+    
+    for idx, region in enumerate(regions):
+        # Convert to numpy array if needed
+        if not isinstance(region, np.ndarray):
+            region = np.array(region)
+        
+        # Convert to RGB if necessary
+        if color_order.upper() == 'BGR' and region.shape[2] == 3:
+            region_rgb = cv2.cvtColor(region, cv2.COLOR_BGR2RGB)
+        else:
+            region_rgb = region.copy()
+        
+        # Create mask for non-black pixels
+        # A pixel is considered black if all channels <= threshold
+        is_black = np.all(region_rgb <= black_threshold, axis=2)
+        non_black_mask = ~is_black
+        
+        # Calculate average of non-black pixels
+        if np.any(non_black_mask):
+            # Extract non-black pixels
+            non_black = region_rgb[non_black_mask]
+            # Calculate average
+            avg = np.mean(non_black, axis=0)
+            avg_rgb = tuple(avg.astype(int))
+        else:
+            # No valid pixels found
+            avg_rgb = (0, 0, 0)
+        
+        avg_rgb_values.append(avg_rgb)
+    
+    return avg_rgb_values
+
+
+
+def calculate_albumin_concentration(pad_rgb, refs):
+    """
+    Calculate albumin concentration based on pad RGB and reference colors.
+    This is a placeholder - replace with your actual calibration logic.
+    """
+    # Example: Use green reference for intensity normalization
+    green_ref = refs['Green']['color_rgb']
+    
+    # Simple intensity calculation (placeholder)
+    pad_intensity = np.mean(pad_rgb)
+    ref_intensity = np.mean(green_ref)
+    
+    # Normalize
+    normalized = pad_intensity / ref_intensity if ref_intensity > 0 else 0
+    
+    # Map to concentration (calibration curve needed)
+    # This is just an example - replace with your actual calibration
+    concentration = normalized * 300  # 0-300 mg/dL range
+    
+    return np.clip(concentration, 0, 300)
+
+
+
+def calculate_creatinine_concentration(pad_rgb, refs):
+    """
+    Calculate creatinine concentration based on pad RGB and reference colors.
+    Placeholder - replace with actual calibration.
+    """
+    # Similar to albumin but with different calibration
+    red_ref = refs['Red']['color_rgb']
+    
+    pad_intensity = np.mean(pad_rgb)
+    ref_intensity = np.mean(red_ref)
+    
+    normalized = pad_intensity / ref_intensity if ref_intensity > 0 else 0
+    
+    # Creatinine range typically 0-300 mg/dL
+    concentration = normalized * 200
+    
+    return np.clip(concentration, 0, 200)
+
+
+
+def interpret_pad_3(pad_rgb, refs):
+    """
+    Interpret pH pad (Pad 3) based on color.
+    Placeholder - replace with actual interpretation logic.
+    """
+    # pH typically ranges from 5.0 to 8.5
+    # Colors might range from orange (acidic) to green/blue (basic)
+    
+    # Example: Use red-green ratio for pH estimation
+    r, g, b = pad_rgb
+    
+    if r > g and r > b:
+        return "Acidic (pH 5.0-6.0)"
+    elif g > r and g > b:
+        return "Neutral (pH 6.5-7.5)"
+    elif b > r and b > g:
+        return "Alkaline (pH 8.0-8.5)"
+    else:
+        return "Mixed - check manually"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # UI
@@ -396,120 +508,65 @@ if img_file:
     # ── Step 3: Analyze ───────────────────────────────────────────────────
     st.markdown('<div class="card"><div class="card-label">Step 03 — Analyze</div>', unsafe_allow_html=True)
 
-    if st.button("🔬  Run Full Analysis", use_container_width=True, disabled=(not detection_results['success'])):
-        with st.spinner("Measuring pad colors and calculating concentrations…"):
-            regions = detection_results['regions']
-
-            # Split into refs and pads by position (first 3 = refs, last 3 = pads)
-            ref_regions  = regions[:3]
-            pad_regions  = regions[3:]
-
-            # Reference strips keyed by friendly name
-            refs = {}
-            for region, name in zip(ref_regions, ["Blue", "Red", "Green"]):
-                refs[name] = {
-                    'center':       region['center'],
-                    'bounds':       region['bounds'],
-                    'area':         region['area'],
-                    'aspect_ratio': region['aspect_ratio'],
-                    'color_rgb':    region['color_rgb'],
-                    'score':        1.0,
+    if st.button("🔬 Run Full Analysis", use_container_width=True, disabled=(not detection_results['success'])):
+            with st.spinner("Measuring pad colors and calculating concentrations…"):
+                regions = detection_results['regions']
+                
+                # Extract the actual image data from each detected region
+                # Note: you need to store the original image crop when detecting regions.
+                # If your detection doesn't save the cropped image, you must modify detect_dipstick_regions
+                # to include an 'image_crop' key. For now, assuming you have region['image'].
+                # If not, you'll need to extract crops from the original image using region['bounds'].
+                
+                # Get the 6 region images (you must have stored them during detection)
+                region_images = [region['image'] for region in regions]  # ← you need to add this during detection
+                
+                # Remove strong black pixels and get average RGB for each region
+                processed_colors = process_regions_average_explicit(region_images, black_threshold=30, color_order='RGB')
+                
+                # Split into refs (first 3) and pads (last 3)
+                ref_colors = processed_colors[:3]   # Blue, Red, Green
+                pad_colors = processed_colors[3:]   # Albumin, Creatinine, pH
+                
+                # Build refs dictionary with cleaned colors
+                refs = {}
+                ref_names = ["Blue", "Red", "Green"]
+                for i, name in enumerate(ref_names):
+                    refs[name] = {
+                        'center':       regions[i]['center'],
+                        'bounds':       regions[i]['bounds'],
+                        'area':         regions[i]['area'],
+                        'aspect_ratio': regions[i]['aspect_ratio'],
+                        'color_rgb':    ref_colors[i],   # cleaned RGB
+                        'score':        1.0,
+                    }
+                
+                # Build colors dictionary with cleaned pad colors
+                pad_names = ["Albumin", "Creatinine", "pH"]
+                colors = {}
+                for i, name in enumerate(pad_names):
+                    colors[name] = pad_colors[i]   # cleaned RGB
+                
+                # Now calculate concentrations (outside the loop)
+                alb_conc = calculate_albumin_concentration(colors["Albumin"], refs)
+                creat_conc = calculate_creatinine_concentration(colors["Creatinine"], refs)
+                uacr = (alb_conc / creat_conc * 1000) if creat_conc > 0 else 0   # typical uACR formula
+                
+                # Store results
+                st.session_state.results = {
+                    "uacr":              uacr,
+                    "albumin":           alb_conc,
+                    "creatinine":        creat_conc,
+                    "colors":            colors,
+                    "refs":              refs,
+                    "detection_results": detection_results,
+                    "annotated":         annotated,
+                    "pad_3_category":    interpret_pad_3(colors["pH"], refs),
                 }
-
-            # Pad colors keyed by analyte name
-            pad_names = ["Albumin", "Creatinine", "pH"]
-            colors = {}
-            for region, name in zip(pad_regions, pad_names):
-                colors[name] = region['color_rgb']
-
-            st.session_state.results = {
-                "uacr":              uacr,
-                "albumin":           alb_conc,
-                "creatinine":        creat_conc,
-                "colors":            colors,
-                "refs":              refs,
-                "detection_results": detection_results,
-                "annotated":         annotated,
-            }
-            st.rerun()
+                st.rerun()
 
     if not detection_results['success']:
         st.caption("⚠️ Analysis disabled until all 6 regions are detected.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# ── Results ────────────────────────────────────────────────────────────────
-if st.session_state.results is not None:
-    res = st.session_state.results
-
-    st.markdown('<div class="card"><div class="card-label">Results</div>', unsafe_allow_html=True)
-
-    # Annotated image (re-show in results section)
-    if "annotated" in res:
-        st.image(res["annotated"], caption="Detected regions (Green: References, Blue: Test Pads)", use_container_width=True)
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # Metrics row
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Albumin", f"{res['albumin']:.0f} mg/dL")
-    c2.metric("Creatinine", f"{res['creatinine']:.0f} mg/dL")
-    c3.metric("uACR", f"{res['uacr']:.1f} mg/g")
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # Color swatches for all detected pads
-    if res["colors"]:
-        st.markdown('<div class="card-label" style="margin-bottom:0.4rem;">Measured Pad Colors</div>', unsafe_allow_html=True)
-        swatch_html = '<div class="swatch-row">'
-        for name, rgb in res["colors"].items():
-            hex_c = "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
-            swatch_html += f"""
-            <div class="swatch-item">
-                <div class="swatch-box" style="background:{hex_c};"></div>
-                <div class="swatch-name">{name}</div>
-                <div class="swatch-rgb">{int(rgb[0])},{int(rgb[1])},{int(rgb[2])}</div>
-            </div>"""
-        swatch_html += "</div>"
-        st.markdown(swatch_html, unsafe_allow_html=True)
-        
-        # Show Pad 3 interpretation if available
-        if res.get("pad_3_category"):
-            st.info(f"Pad 3 analysis: {res['pad_3_category']}")
-
-    st.markdown("<hr>", unsafe_allow_html=True)
-
-    # Interpretation
-    uacr = res["uacr"]
-    if uacr < 30:
-        st.markdown("""
-        <div class="status-normal">
-            <div class="status-label">✅ Normal</div>
-            <div class="status-sub">uACR &lt; 30 mg/g — within normal range</div>
-        </div>""", unsafe_allow_html=True)
-    elif uacr < 300:
-        st.markdown("""
-        <div class="status-moderate">
-            <div class="status-label">⚠️ Moderately Increased</div>
-            <div class="status-sub">uACR 30–300 mg/g — Microalbuminuria detected</div>
-        </div>""", unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="status-severe">
-            <div class="status-label">🔴 Severely Increased</div>
-            <div class="status-sub">uACR &gt; 300 mg/g — Macroalbuminuria detected</div>
-        </div>""", unsafe_allow_html=True)
-    
-    # Add detection quality note
-    if res['detection_results']['order_verified']:
-        st.success("✓ All regions detected in correct order (top to bottom)")
-    else:
-        st.warning("⚠️ Regions detected but order may be incorrect. Check visualization.")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🔄  New Analysis", use_container_width=True):
-        st.session_state.results = None
-        st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
 
